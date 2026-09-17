@@ -1,115 +1,150 @@
 # Re3D
 
-Re3D 是从 `experiments/feedforward-mvs` 整理出的可复用三分支重建管线。迁移保留当前选定方案：
+## 当前技术管线
 
-- A：MapAnything + 稀疏尺度校正 + 跨视角 v4 + OpenMVS；
-- B：MVSAnywhere + 稀疏尺度校正 + 跨视角 v2 + OpenMVS；
-- C：COLMAP + OpenMVS PatchMatch 基准路线。
+Re3D 是一套面向多视图照片的三分支 3D 重建管线。三个分支共享 COLMAP 相机估计和 OpenMVS 网格/纹理后端，用于比较学习型深度与传统 PatchMatch 深度在同一相机、融合和纹理条件下的结果。
 
-历史 LEGO/poster 输入、实验输出、日志和中间深度没有复制。原实验目录保持不变。
+| 分支 | 深度来源 | 深度处理 | 几何与纹理后端 |
+|---|---|---|---|
+| **A-v4** | MapAnything 批量推理 | COLMAP 稀疏点逐图尺度校正；跨视角 v4 一致性过滤 | OpenMVS 深度融合、网格重建和纹理化 |
+| **B-v2** | MVSAnywhere hero，7 个源视角，384×384 | COLMAP 稀疏点逐图尺度校正；跨视角 v2 一致性过滤 | OpenMVS 深度融合、网格重建和纹理化 |
+| **C** | COLMAP 相机 + OpenMVS PatchMatch | OpenMVS 原生稠密化 | OpenMVS 网格重建和纹理化 |
 
-## 目录
+共享前端与完整执行流：
 
 ```text
-Re3D/
-├── README.md
-├── run.ps1                         # 统一运行入口
-├── doctor.ps1                      # 环境与资源检查
-├── configs/
-│   ├── pipeline.json               # 当前 A-v4/B-v2/C 参数
-│   ├── paths.local.json            # 本机 Python 环境路径
-│   ├── paths.example.json
-│   └── reference-*.json            # 原实验冻结配置，仅供核对
-├── scripts/
-│   ├── run_pipeline.py             # 总体编排
-│   ├── prepare_dataset.py           # 输入复制、掩码和哈希清单
-│   ├── run_colmap_shared.py
-│   ├── run_mapanything_batched.py
-│   ├── run_mvsanywhere.py
-│   ├── calibrate_depths_to_colmap_sparse.py
-│   ├── optimize_multiview_depths.py
-│   ├── export_model_depths_to_openmvs.py
-│   ├── prepare_openmvs_texture_input.py
-│   ├── normalize_openmvs_output.py
-│   └── validate_outputs.py
-├── vendor/
-│   ├── map-anything/               # 固定源码副本
-│   ├── mvsanywhere/                # 固定源码副本
-│   └── openmvs-2.4.0-windows/      # 当前验证过的 Windows 二进制
-├── models/
-│   ├── mapanything/                # config.json + model.safetensors
-│   ├── mvsanywhere/                # mvsanywhere_hero.ckpt
-│   ├── torch/hub/                  # DINOv2 源码缓存与 vitb14 权重
-│   └── checksums.json
-├── environments/                   # 环境快照，不包含不可移植的虚拟环境
-├── data/scenes/                    # 可选的用户输入放置区
-├── work/<scene>/                   # 相机、深度、DMAP、点云、网格等中间数据
-├── outputs/<scene>/                # 最终 OBJ/MTL/JPG/GLB
-└── logs/<scene>/                   # 分阶段日志
+PNG/JPG/JPEG
+  → 输入校验、复制、alpha 掩码与哈希清单
+  → pycolmap CPU SIFT 特征、穷举匹配、增量建图
+  → 相机导出与 OpenMVS 场景准备
+  → C 分支 PatchMatch 深度（同时生成 A/B 所需的 DMAP 模板）
+  ├─→ C：融合 → ReconstructMesh → TextureMesh
+  ├─→ A：MapAnything → 稀疏尺度校正 → 跨视角 v4 → DMAP
+  │       → OpenMVS 融合 → ReconstructMesh → TextureMesh
+  └─→ B：MVSAnywhere → 稀疏尺度校正 → 跨视角 v2 → DMAP
+          → OpenMVS 融合 → ReconstructMesh → TextureMesh
+  → OBJ/MTL/JPG/GLB 归一化与加载验证
 ```
 
-## 当前机器直接运行
+A/B 均依赖 C 分支生成与相机一致的 DMAP 模板。因此，即使只选择 A 或 B，C 的相机转换和 PatchMatch 稠密化仍会执行，但不会生成 C 的最终纹理网格。A/B 推理使用 `--skip-tsdf`，不生成被 OpenMVS 后端替代的 Open3D TSDF 临时网格。
 
-先检查依赖：
+当前关键参数由 [`configs/pipeline.json`](configs/pipeline.json) 统一管理：
+
+- A-v4：批量大小 12，7 个相邻视角，内部最少支持数 1、边缘最少支持数 2，相对深度阈值 0.05，重投影阈值 2 px；
+- B-v2：7 个源视角，1 次 refinement，7 个相邻视角，最少支持数 2，相对深度阈值 0.04，重投影阈值 2 px；
+- A/B：每张图至少使用 30 个 COLMAP 稀疏点完成尺度校正；
+- C：最大深度分辨率 1024，PatchMatch 使用 6 个视角；
+- 网格：去除孤立成分 4、补洞 30、平滑 2；纹理最大尺寸 8192。
+
+## 快速开始
+
+### 1. 配置本机环境
+
+首次使用时，从示例创建本机配置并填写两个 Python 解释器路径：
 
 ```powershell
 cd D:\3Dreconstruction\Re3D
+Copy-Item .\configs\paths.example.json .\configs\paths.local.json
+```
+
+也可以用环境变量临时覆盖配置：
+
+```powershell
+$env:RE3D_MAP_PYTHON = 'D:\envs\mapanything\python.exe'
+$env:RE3D_MVS_PYTHON = 'D:\envs\mvsanywhere\python.exe'
+```
+
+大型模型权重不纳入 Git，运行前需确认以下文件存在：
+
+```text
+models/mapanything/model.safetensors
+models/mvsanywhere/mvsanywhere_hero.ckpt
+models/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth
+```
+
+### 2. 检查依赖
+
+```powershell
 .\doctor.ps1
 ```
 
-运行三条分支：
+检查项包括两个 Python 环境、核心 Python 包、模型权重、第三方源码和 OpenMVS 可执行文件。
 
-```powershell
-.\run.ps1 -Scene my_object -Images D:\photos\my_object -Branches all
-```
+### 3. 预览或运行
 
-只运行指定分支：
-
-```powershell
-.\run.ps1 -Scene my_object -Images D:\photos\my_object -Branches a
-.\run.ps1 -Scene my_object -Images D:\photos\my_object -Branches b
-.\run.ps1 -Scene my_object -Images D:\photos\my_object -Branches c
-```
-
-A/B 依赖 C 生成相机一致的 DMAP 模板。只选择 A 或 B 时，编排器会自动执行 C 的相机转换和 PatchMatch 深度阶段，但不会生成 C 的最终纹理模型。
-
-预览将执行的命令而不运行：
+先预览命令而不执行重建：
 
 ```powershell
 .\run.ps1 -Scene my_object -Images D:\photos\my_object -Branches all -DryRun
 ```
 
-编排器按产物标记自动续跑。阶段产物已存在时会跳过，不会覆盖已完成结果。需要从头实验时应使用新的 `-Scene` 名称。
+运行全部分支：
+
+```powershell
+.\run.ps1 -Scene my_object -Images D:\photos\my_object -Branches all
+```
+
+运行指定分支：
+
+```powershell
+.\run.ps1 -Scene my_object_a -Images D:\photos\my_object -Branches a
+.\run.ps1 -Scene my_object_b -Images D:\photos\my_object -Branches b
+.\run.ps1 -Scene my_object_c -Images D:\photos\my_object -Branches c
+.\run.ps1 -Scene my_object_ab -Images D:\photos\my_object -Branches a,b
+```
+
+`Scene` 只允许字母、数字、点、下划线和连字符。新场景必须提供 `-Images`；已有场景续跑时可以省略。
 
 ## 输入要求
 
-- 支持 PNG、JPG 和 JPEG；
-- 至少 3 张图片，实际重建建议远多于最低值；
-- 当前版本要求所有图片尺寸一致；
-- 当前 COLMAP 前端按单相机 PINHOLE 模型处理，适合固定焦距拍摄；
-- RGBA 输入会使用 alpha 生成前景掩码；普通 RGB/JPEG 会生成全前景掩码；
-- 普通照片若背景复杂，建议在运行前提供已经抠图的 PNG，或先增加独立的分割步骤；
-- 图片应保持静态场景、连续视角和充分重叠。
+- 支持 `.png`、`.jpg` 和 `.jpeg`；
+- 至少 3 张图片，稳定重建通常需要更多连续视角；
+- 同一场景的图片尺寸必须一致；
+- COLMAP 前端使用单相机 `PINHOLE` 模型，适合固定焦距拍摄；
+- RGBA 图片根据 alpha 通道生成前景掩码，阈值默认为 128；
+- RGB/JPEG 会生成全前景掩码，复杂背景建议预先分割为带 alpha 的 PNG；
+- 拍摄对象应保持静止，并具有充分视角重叠、纹理和清晰度；
+- 透明、镜面、重复纹理、弱纹理和运动物体会显著降低相机估计或深度融合质量。
 
-## 运行顺序
+## 目录结构
 
 ```text
-输入整理
-  → COLMAP SIFT/匹配/增量建图
-  → 相机导出与 OpenMVS RGB/alpha 输入
-  → C PatchMatch（同时为 A/B 生成 DMAP 模板）
-  → A MapAnything 或 B MVSAnywhere 深度
-  → COLMAP 稀疏点逐图尺度校正
-  → A-v4 / B-v2 跨视角过滤
-  → 深度写入 DMAP
-  → OpenMVS 融合与 ReconstructMesh
-  → TextureMesh
-  → OBJ/MTL/JPG/GLB 归一化与加载验证
+Re3D/
+├── run.ps1                         # PowerShell 统一入口
+├── doctor.ps1                      # 环境和资源检查
+├── configs/
+│   ├── pipeline.json               # 当前管线参数
+│   ├── paths.example.json          # 本机路径配置示例
+│   └── paths.local.json            # 本机路径配置，不纳入 Git
+├── scripts/
+│   ├── run_pipeline.py             # 阶段编排、缓存和日志
+│   ├── prepare_dataset.py          # 输入、掩码与哈希清单
+│   ├── run_colmap_shared.py        # 共享 COLMAP 前端
+│   ├── run_mapanything_batched.py  # A 分支深度推理
+│   ├── run_mvsanywhere.py          # B 分支深度推理
+│   ├── calibrate_depths_to_colmap_sparse.py
+│   ├── optimize_multiview_depths.py
+│   ├── export_model_depths_to_openmvs.py
+│   ├── normalize_openmvs_output.py
+│   └── validate_outputs.py
+├── vendor/                         # 固定的第三方源码和 OpenMVS 二进制
+├── models/                         # 模型配置、权重和 DINOv2 缓存
+├── environments/                   # 可复现环境的依赖快照
+├── data/scenes/                    # 可选的本地输入区
+├── work/<scene>/                   # 相机、深度、DMAP、点云与网格中间文件
+├── outputs/<scene>/                # 最终模型和验证报告
+└── logs/<scene>/                   # 每个阶段的完整日志
 ```
 
-A/B 推理脚本在迁移版中使用 `--skip-tsdf`，不再生成已经被 OpenMVS 替代的 Open3D TSDF 临时网格，因此减少内存、运行时间和无用中间文件。
+`work/`、`outputs/`、`logs/`、本机环境、输入场景和模型权重默认不纳入 Git。
 
-## 最终输出
+## 续跑与实验隔离
+
+编排器以阶段产物作为完成标记。标记存在时会跳过对应阶段，不会自动覆盖已经完成的结果；失败阶段可在修复问题后使用相同命令继续执行。
+
+修改模型、输入或 [`configs/pipeline.json`](configs/pipeline.json) 后，已有完成标记不会自动失效。进行参数对比或从头重建时，应使用新的 `Scene` 名称，避免新旧产物混用。确认最终结果后，可以手动归档或删除 `work/<scene>`；程序不会自动清理中间数据。
+
+## 输出与评估
 
 ```text
 outputs/<scene>/
@@ -124,24 +159,37 @@ outputs/<scene>/
 └── validation.json
 ```
 
-`work/<scene>` 可以在确认最终产物后自行归档或删除。编排器不会自动删除中间数据。
+主要诊断文件：
+
+| 阶段 | 文件 | 用途 |
+|---|---|---|
+| 相机重建 | `work/<scene>/shared/colmap/reconstruction_metrics.json` | 检查注册图像数和稀疏重建质量 |
+| A/B 尺度校正 | `sparse_calibration_manifest.json` | 检查每张图的稀疏点数量和尺度估计 |
+| A/B 跨视角过滤 | `consistency_manifest.json` | 检查深度保留率和一致性过滤结果 |
+| 最终验证 | `outputs/<scene>/validation.json` | 检查 OBJ、MTL、纹理和 GLB 是否可加载 |
+| 阶段日志 | `logs/<scene>/*.log` | 定位外部程序或脚本失败原因 |
+
+`validation.json` 通过只表示产物结构完整且能够加载，不代表几何质量达到预期。A/B/C 应结合相机注册率、尺度校正覆盖、跨视角深度保留率、网格连通性和可视结果共同评价。
+
+## 优化与调参建议
+
+1. **先保证输入质量。** 补充连续视角、减少模糊并保持固定焦距，通常比放宽后处理阈值更有效。
+2. **先检查 COLMAP。** 三个分支共享相机结果；注册率不足时，应优先改善拍摄、掩码或匹配，而不是调整 A/B 深度参数。
+3. **再检查尺度校正。** 若多数图片达不到 `minimum_sparse_points`，应先提高稀疏重建覆盖或调整逐图尺度策略。
+4. **最后调跨视角过滤。** 输出缺失过多时可逐步降低支持数或放宽深度/重投影阈值；漂浮噪声较多时反向收紧。每次只改变一组参数并使用新场景名对比。
+5. **统一后端比较。** A/B/C 共用网格和纹理配置。比较深度方案时应保持 OpenMVS 参数不变；优化最终成品时再单独调整 `mesh` 和 `texture`。
 
 ## 环境
 
-现有 Conda 环境没有直接复制。两个环境合计约 12.7 GB，并含有与原安装位置绑定的二进制和绝对路径，简单移动不能保证可用。
+当前验证组合：
 
-当前机器的可执行路径记录在 `configs/paths.local.json`。迁移到其他机器后，可以修改该文件，或设置：
+- MapAnything：Python 3.12、PyTorch 2.7.1+cu128；
+- MVSAnywhere：Python 3.10、PyTorch 2.1.2+cu118；
+- OpenMVS：2.4.0 Windows VC17 x64；
+- MVSAnywhere 图像编码器依赖项目内的 DINOv2 源码缓存和 ViT-B/14 权重。
 
-```powershell
-$env:RE3D_MAP_PYTHON = 'D:\envs\mapanything\python.exe'
-$env:RE3D_MVS_PYTHON = 'D:\envs\mvsanywhere\python.exe'
-```
+`environments/` 保存 Conda 和 pip 依赖快照，具体重建步骤见 [`environments/README.md`](environments/README.md)。CUDA、显卡驱动和 PyTorch wheel 必须相互兼容。
 
-`environments/` 保存了本次成功环境的 Conda 和 pip 快照。环境重建说明见 `environments/README.md`。
-推荐的新环境位置为 `environments/runtime/`；它与固定依赖快照分开并已加入 `.gitignore`。
+## 第三方许可
 
-## 结果解释
-
-Re3D 保留的是已验证管线和参数，不包含“对任意数据保证质量”的假设。COLMAP 注册失败、透明/反光材质、动态场景、弱纹理和视角覆盖不足仍可能导致失败。A/B/C 的最终质量应结合相机注册率、跨视角深度保留率、网格碎片数和可视检查判断。
-
-第三方源码、模型和二进制的归属与许可说明见 `THIRD_PARTY_NOTICES.md`。
+第三方源码、模型权重和二进制文件分别受各自许可约束。使用或分发前请阅读 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) 以及各上游项目附带的许可文件。
