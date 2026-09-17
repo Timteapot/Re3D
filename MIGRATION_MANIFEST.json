@@ -1,0 +1,58 @@
+{
+  "created_at_utc": "2026-09-17T13:00:35.592933+00:00",
+  "source_workspace": "D:\\3Dreconstruction",
+  "migration_mode": "copy; original experiments and results preserved",
+  "selected_pipeline": {
+    "a": "v4",
+    "b": "v2",
+    "c": "frozen OpenMVS baseline"
+  },
+  "included": [
+    "pipeline scripts and unified runner",
+    "selected and reference configurations",
+    "MapAnything and MVSAnywhere source snapshots",
+    "OpenMVS 2.4.0 Windows binaries",
+    "MapAnything, MVSAnywhere hero and DINOv2 model weights",
+    "environment dependency snapshots"
+  ],
+  "excluded": [
+    "all LEGO/poster input images",
+    "all experiment results and previews",
+    "all generated depth maps, DMAPs, point clouds and meshes",
+    "existing Conda environment directories"
+  ],
+  "tracked_project_files": [
+    ".gitignore",
+    "README.md",
+    "run.ps1",
+    "doctor.ps1",
+    "THIRD_PARTY_NOTICES.md",
+    "configs/paths.example.json",
+    "configs/paths.local.json",
+    "configs/pipeline.json",
+    "configs/reference-a-v4.json",
+    "configs/reference-b-v2.json",
+    "configs/reference-c-frozen.json",
+    "scripts/calibrate_depths_to_colmap_sparse.py",
+    "scripts/export_model_depths_to_openmvs.py",
+    "scripts/extract_colmap_cameras.py",
+    "scripts/normalize_openmvs_output.py",
+    "scripts/optimize_multiview_depths.py",
+    "scripts/prepare_dataset.py",
+    "scripts/prepare_openmvs_texture_input.py",
+    "scripts/render_mesh_preview.py",
+    "scripts/run_colmap_shared.py",
+    "scripts/run_mapanything.py",
+    "scripts/run_mapanything_batched.py",
+    "scripts/run_mvsanywhere.py",
+    "scripts/run_pipeline.py",
+    "scripts/validate_outputs.py",
+    "environments/mapanything-conda-lock.yml",
+    "environments/mapanything-pip-lock.txt",
+    "environments/mvsanywhere-conda-lock.yml",
+    "environments/mvsanywhere-pip-lock.txt",
+    "environments/mvsanywhere-upstream.yml",
+    "environments/README.md"
+  ],
+  "model_checksum_manifest": "models/checksums.json"
+}

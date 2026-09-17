@@ -1,0 +1,85 @@
+{
+  "schema_version": "1.0",
+  "selected_branches": {
+    "a": "MapAnything cross-view v4",
+    "b": "MVSAnywhere cross-view v2",
+    "c": "COLMAP + OpenMVS frozen baseline"
+  },
+  "input": {
+    "extensions": [".png", ".jpg", ".jpeg"],
+    "minimum_images": 3,
+    "require_uniform_dimensions": true,
+    "alpha_threshold": 128
+  },
+  "camera_frontend": {
+    "implementation": "pycolmap CPU SIFT + exhaustive matching + incremental mapping",
+    "camera_model": "PINHOLE",
+    "camera_mode": "SINGLE"
+  },
+  "a_v4": {
+    "model": "models/mapanything",
+    "batch_size": 12,
+    "sparse_scale_mode": "image",
+    "minimum_sparse_points": 30,
+    "cross_view": {
+      "neighbors": 7,
+      "interior_minimum_support": 1,
+      "edge_minimum_support": 2,
+      "edge_relative_gradient": 0.015,
+      "relative_depth_threshold": 0.05,
+      "reprojection_threshold_pixels": 2.0,
+      "normal_angle_threshold_degrees": 0.0,
+      "minimum_component_area_pixels": 16
+    },
+    "openmvs_threads": 16
+  },
+  "b_v2": {
+    "repo": "vendor/mvsanywhere",
+    "checkpoint": "models/mvsanywhere/mvsanywhere_hero.ckpt",
+    "source_views": 7,
+    "height": 384,
+    "width": 384,
+    "refinement_steps": 1,
+    "sparse_scale_mode": "image",
+    "minimum_sparse_points": 30,
+    "cross_view": {
+      "neighbors": 7,
+      "minimum_support": 2,
+      "relative_depth_threshold": 0.04,
+      "reprojection_threshold_pixels": 2.0,
+      "minimum_component_area_pixels": 32
+    },
+    "openmvs_threads": 24
+  },
+  "c": {
+    "resolution_level": 1,
+    "max_resolution": 1024,
+    "number_views": 6,
+    "openmvs_threads": 24
+  },
+  "external_depth_fusion": {
+    "resolution_level": 0,
+    "max_resolution": 1024,
+    "number_views_fuse": 2,
+    "geometric_iters": 0,
+    "postprocess_dmaps": 0,
+    "estimate_colors": 1,
+    "estimate_normals": 1,
+    "tower_mode": 0
+  },
+  "mesh": {
+    "remove_spurious": 4,
+    "close_holes": 30,
+    "smooth": 2
+  },
+  "texture": {
+    "global_seam_leveling": 0,
+    "local_seam_leveling": 0,
+    "sharpness_weight": 0,
+    "outlier_threshold": 0,
+    "ignore_mask_label": 0,
+    "empty_color": 16777215,
+    "max_texture_size": 8192,
+    "max_threads": 24
+  }
+}

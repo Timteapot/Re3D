@@ -1,0 +1,69 @@
+{
+  "status": "frozen",
+  "frozen_at": "2026-09-17T15:00:07+08:00",
+  "dataset": "lego100",
+  "images": 100,
+  "purpose": "Hold the validated C baseline constant while optimizing A/B cross-view depth consistency.",
+  "camera_frontend": {
+    "implementation": "pycolmap CPU SIFT, exhaustive matching, incremental mapping",
+    "registered_images": 100,
+    "points3D": 29904,
+    "mean_reprojection_error_px": 0.7066634891863174,
+    "camera_file": "../shared/lego100/cameras_refined.npz"
+  },
+  "dense": {
+    "implementation": "OpenMVS 2.4.0 DensifyPointCloud",
+    "resolution_level": 1,
+    "max_resolution": 1024,
+    "number_views": 6,
+    "max_threads": 24
+  },
+  "mesh": {
+    "implementation": "OpenMVS ReconstructMesh",
+    "remove_spurious": 4,
+    "close_holes": 30,
+    "smooth": 2,
+    "max_threads": 24,
+    "refine_mesh": false
+  },
+  "texture": {
+    "implementation": "OpenMVS TextureMesh",
+    "rgb_preprocess": "nearest opaque-pixel color extension",
+    "alpha_threshold": 128,
+    "mask_name": "<image-stem>.mask.png",
+    "ignore_mask_label": 0,
+    "global_seam_leveling": 0,
+    "local_seam_leveling": 0,
+    "sharpness_weight": 0,
+    "outlier_threshold": 0,
+    "empty_color": 16777215,
+    "max_texture_size": 8192,
+    "max_threads": 24,
+    "mtl_opacity": "d 1.000000"
+  },
+  "artifacts": {
+    "scene_dense_mvs": {
+      "path": "../runs/lego100/branches/c_openmvs/scene_dense.mvs",
+      "sha256": "4BD74E19D989191BEBCE43B7B96B929379D5BAF7179A3B1394882626C8FA01A2"
+    },
+    "scene_mesh_ply": {
+      "path": "../runs/lego100/branches/c_openmvs/scene_mesh.ply",
+      "sha256": "354F0A5FC2631BD91E8F10D8C9E5C919A60132D28AC00EF1101C3DFC4A5A2332"
+    },
+    "final_obj": {
+      "path": "../runs/lego100/branches/c_openmvs/final-corrected/mesh.obj",
+      "sha256": "5AC386E5E9A155DA9E0DC6FD59FBA08981D247FE645A7B4AE72ABE299C07160F"
+    },
+    "texture": {
+      "path": "../runs/lego100/branches/c_openmvs/final-corrected/texture.jpg",
+      "sha256": "9C212CFF37A91901A8597F70C554CFADD1F8062E84814B5F9F9124D2D431F2E6"
+    }
+  },
+  "baseline_metrics": {
+    "dense_points": 1153796,
+    "mesh_vertices": 211485,
+    "mesh_faces": 421704,
+    "near_black_face_color_ratio": 0.026959668392996034,
+    "median_face_color_luminance": 100.66666666666667
+  }
+}

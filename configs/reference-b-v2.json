@@ -1,0 +1,53 @@
+{
+  "experiment_id": "lego100-crossview-v2",
+  "created_at": "2026-09-17",
+  "input_depths": {
+    "a": "../runs/lego100/branches/a_mapanything/depth",
+    "b": "../runs/lego100/branches/b_mvsanywhere/depth"
+  },
+  "frozen_c_reference": "lego100-c-frozen-20260917.json",
+  "sparse_scale_calibration": {
+    "reconstruction": "../shared/lego100/colmap/mapper/0",
+    "mode": "per-image robust median",
+    "minimum_points": 30,
+    "ratio_bounds": [0.5, 2.0],
+    "outlier_filter": "log-ratio median plus 3.5 scaled MAD"
+  },
+  "cross_view_filter": {
+    "neighbors": 7,
+    "neighbor_policy": "model source views when recorded, otherwise nearest calibrated camera centers",
+    "minimum_support": 2,
+    "relative_depth_threshold": 0.04,
+    "round_trip_reprojection_threshold_pixels": 2.0,
+    "minimum_connected_component_area_pixels": 32,
+    "depth_update": "median of target depth and accepted neighbor depths reprojected into the target camera"
+  },
+  "openmvs_handoff": {
+    "resolution_level": 0,
+    "max_resolution": 1024,
+    "number_views_fuse": 2,
+    "geometric_iters": 0,
+    "postprocess_dmaps": 0,
+    "estimate_colors": 1,
+    "estimate_normals": 1,
+    "tower_mode": 0,
+    "max_threads": 24
+  },
+  "mesh": {
+    "remove_spurious": 4,
+    "close_holes": 30,
+    "smooth": 2,
+    "max_threads": 24
+  },
+  "texture": {
+    "source": "frozen C texture configuration",
+    "global_seam_leveling": 0,
+    "local_seam_leveling": 0,
+    "sharpness_weight": 0,
+    "outlier_threshold": 0,
+    "ignore_mask_label": 0,
+    "empty_color": 16777215,
+    "max_texture_size": 8192,
+    "max_threads": 24
+  }
+}

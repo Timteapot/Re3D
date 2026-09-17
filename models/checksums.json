@@ -1,0 +1,21 @@
+{
+  "algorithm": "SHA-256",
+  "files": {
+    "models/mapanything/config.json": {
+      "bytes": 5776,
+      "sha256": "65701D09D99ED37A21D295F0D138978B3D584AB3BCCDBCB4A2853DA212B676C5"
+    },
+    "models/mapanything/model.safetensors": {
+      "bytes": 4914062480,
+      "sha256": "981F060C64664DFF3272B5F5A823D350ABE71A2F144444DB4CFC325F3ED5A3A0"
+    },
+    "models/mvsanywhere/mvsanywhere_hero.ckpt": {
+      "bytes": 2420601860,
+      "sha256": "00878BAB903B1D384CD6BB9EA092E247A9036D429CB8BCC3D6DCBB81F67E556D"
+    },
+    "models/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth": {
+      "bytes": 346378731,
+      "sha256": "0B8B82F85DE91B424ADED121C7E1DCC2B7BC6D0ADEEA651BF73A13307FAD8C73"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+* text=auto
+
+# Keep cross-platform source and configuration files stable.
+*.py   text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.sh   text eol=lf
+
+# PowerShell and Windows command files use native Windows line endings.
+*.ps1  text eol=crlf
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# Common binary artifacts.
+*.dll  binary
+*.exe  binary
+*.lib  binary
+*.pyd  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.zip  binary
+*.7z   binary
+
+# Preserve vendored upstream snapshots verbatim.
+vendor/** -whitespace
+models/torch/hub/** -whitespace

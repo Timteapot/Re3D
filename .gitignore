@@ -1,0 +1,22 @@
+work/*
+outputs/*
+logs/*
+data/scenes/*
+environments/runtime/
+!work/.gitkeep
+!outputs/.gitkeep
+!logs/.gitkeep
+!data/scenes/.gitkeep
+
+# Machine-specific configuration
+configs/paths.local.json
+
+# Downloaded model weights (keep source, configs, and checksums in Git)
+*.safetensors
+*.ckpt
+*.pth
+*.pt
+
+# Python caches
+__pycache__/
+*.pyc
