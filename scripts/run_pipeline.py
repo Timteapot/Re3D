@@ -81,6 +81,9 @@ class Pipeline:
             raise ValueError(
                 "openmvs_dense_resolution.max_resolution must be >= min_resolution"
             )
+        c_ignore_mask_label = int(self.config["c"]["ignore_mask_label"])
+        if not 0 <= c_ignore_mask_label <= 255:
+            raise ValueError("c.ignore_mask_label must be between 0 and 255")
 
     def step(self, name: str, command: list[Path | str], marker: Path | None = None) -> None:
         printable = subprocess.list2cmdline([str(value) for value in command])
@@ -244,6 +247,10 @@ class Pipeline:
                 str(dense["max_resolution"]),
                 "--number-views",
                 str(cfg["number_views"]),
+                "--mask-path",
+                self.shared / "openmvs_input" / "images",
+                "--ignore-mask-label",
+                str(cfg["ignore_mask_label"]),
                 "--max-threads",
                 str(cfg["openmvs_threads"]),
             ],

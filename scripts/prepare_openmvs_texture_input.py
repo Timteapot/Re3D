@@ -12,7 +12,7 @@ from scipy.ndimage import distance_transform_edt
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Build an isolated COLMAP/OpenMVS texture input with RGB images and alpha masks."
+        description="Build an isolated OpenMVS input with RGB images and alpha masks."
     )
     parser.add_argument("--images", type=Path, required=True)
     parser.add_argument("--sparse", type=Path, required=True)

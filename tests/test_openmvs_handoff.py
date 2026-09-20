@@ -172,10 +172,10 @@ class HandoffTests(unittest.TestCase):
 
 
 class PipelineConfigTests(unittest.TestCase):
-    def test_c_and_external_commands_share_resolution_contract(self) -> None:
+    def make_pipeline(self):
         from run_pipeline import Pipeline
 
-        pipeline = Pipeline(
+        return Pipeline(
             scene="contract-test",
             images=None,
             branches={"a"},
@@ -183,6 +183,9 @@ class PipelineConfigTests(unittest.TestCase):
             paths_path=ROOT / "configs" / "paths.local.json",
             dry_run=True,
         )
+
+    def test_c_and_external_commands_share_resolution_contract(self) -> None:
+        pipeline = self.make_pipeline()
         commands: list[list[str]] = []
 
         def collect(_name, command, _marker=None):
@@ -204,6 +207,27 @@ class PipelineConfigTests(unittest.TestCase):
             )
 
         self.assertEqual(resolution(densify_commands[0]), resolution(densify_commands[1]))
+
+    def test_c_densify_explicitly_uses_alpha_masks(self) -> None:
+        pipeline = self.make_pipeline()
+        commands: list[list[str]] = []
+
+        def collect(_name, command, _marker=None):
+            commands.append([str(value) for value in command])
+
+        pipeline.step = collect  # type: ignore[method-assign]
+        pipeline.c_geometry()
+        densify = next(
+            command for command in commands if command[0].endswith("DensifyPointCloud.exe")
+        )
+        self.assertEqual(
+            Path(densify[densify.index("--mask-path") + 1]),
+            pipeline.shared / "openmvs_input" / "images",
+        )
+        self.assertEqual(
+            densify[densify.index("--ignore-mask-label") + 1],
+            str(pipeline.config["c"]["ignore_mask_label"]),
+        )
 
 
 if __name__ == "__main__":

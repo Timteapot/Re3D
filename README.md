@@ -8,7 +8,7 @@ Re3D 是一套面向多视图照片的三分支 3D 重建管线。三个分支�
 |---|---|---|---|
 | **A-v4** | MapAnything 批量推理 | COLMAP 稀疏点逐图尺度校正；跨视角 v4 一致性过滤 | OpenMVS 深度融合、网格重建和纹理化 |
 | **B-v2** | MVSAnywhere hero，7 个源视角，384×384 | COLMAP 稀疏点逐图尺度校正；跨视角 v2 一致性过滤 | OpenMVS 深度融合、网格重建和纹理化 |
-| **C** | COLMAP 相机 + OpenMVS PatchMatch | OpenMVS 原生稠密化 | OpenMVS 网格重建和纹理化 |
+| **C** | COLMAP 相机 + OpenMVS PatchMatch | alpha 前景掩码约束的 OpenMVS 原生稠密化 | OpenMVS 网格重建和纹理化 |
 
 共享前端与完整执行流：
 
@@ -17,7 +17,7 @@ PNG/JPG/JPEG
   → 输入校验、复制、alpha 掩码与哈希清单
   → pycolmap CPU SIFT 特征、穷举匹配、增量建图
   → 相机导出与 OpenMVS 场景准备
-  → C 分支 PatchMatch 深度（同时生成 A/B 所需的 DMAP 模板）
+  → C 分支使用显式 alpha mask 的 PatchMatch 深度（同时生成 A/B 所需的 DMAP 模板）
   ├─→ C：融合 → ReconstructMesh → TextureMesh
   ├─→ A：MapAnything → 稀疏尺度校正 → 跨视角 v4 → DMAP Adapter
   │       → Validator → immutable canonical → 单次 staging
@@ -36,7 +36,7 @@ A/B 均依赖 C 分支生成与相机一致的 DMAP 模板。因此，即使只�
 - B-v2：7 个源视角，1 次 refinement，7 个相邻视角，最少支持数 2，相对深度阈值 0.04，重投影阈值 2 px；
 - A/B：每张图至少使用 30 个 COLMAP 稀疏点完成尺度校正；
 - C 与 A/B 共用稠密分辨率契约：`resolution-level=1`、`min-resolution=640`、`max-resolution=1024`；
-- C 的 PatchMatch 使用 6 个视角；A/B 正式融合使用 `number-views-fuse=2`、`fusion-filter=2`；
+- C 的 PatchMatch 使用 6 个视角，并通过 `mask-path`、`ignore-mask-label=0` 排除透明背景；A/B 正式融合使用 `number-views-fuse=2`、`fusion-filter=2`；
 - 网格：去除孤立成分 4、补洞 30、平滑 2；纹理最大尺寸 8192。
 
 ## 快速开始

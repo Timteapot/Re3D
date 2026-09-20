@@ -3,7 +3,7 @@
   "selected_branches": {
     "a": "MapAnything cross-view v4",
     "b": "MVSAnywhere cross-view v2",
-    "c": "COLMAP + OpenMVS frozen baseline"
+    "c": "COLMAP + OpenMVS PatchMatch with alpha masks"
   },
   "input": {
     "extensions": [".png", ".jpg", ".jpeg"],
@@ -58,6 +58,7 @@
   },
   "c": {
     "number_views": 6,
+    "ignore_mask_label": 0,
     "openmvs_threads": 24
   },
   "external_depth_fusion": {
