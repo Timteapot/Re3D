@@ -15,6 +15,18 @@ def main() -> None:
     parser.add_argument("--masks", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--camera-model", default="PINHOLE")
+    parser.add_argument(
+        "--num-threads",
+        type=int,
+        default=4,
+        help="CPU worker limit for SIFT extraction and matching; avoids excessive memory use on high-core hosts",
+    )
+    parser.add_argument(
+        "--max-num-features",
+        type=int,
+        default=6000,
+        help="Maximum SIFT keypoints per image; matching cost grows approximately quadratically",
+    )
     args = parser.parse_args()
 
     args.output.mkdir(parents=True, exist_ok=True)
@@ -30,7 +42,10 @@ def main() -> None:
         reader.mask_path = str(args.masks.resolve())
     extraction = pycolmap.FeatureExtractionOptions()
     extraction.max_image_size = 1600
-    extraction.sift.max_num_features = 12000
+    extraction.num_threads = args.num_threads
+    sift_extraction = pycolmap.SiftExtractionOptions()
+    sift_extraction.max_num_features = args.max_num_features
+    extraction.sift = sift_extraction
     pycolmap.extract_features(
         database_path=str(database),
         image_path=str(args.images),
@@ -42,6 +57,7 @@ def main() -> None:
     )
 
     matching = pycolmap.FeatureMatchingOptions()
+    matching.num_threads = args.num_threads
     matching.guided_matching = True
     pycolmap.match_exhaustive(
         database_path=str(database),

@@ -51,16 +51,18 @@
     },
     "openmvs_threads": 24
   },
-  "c": {
+  "openmvs_dense_resolution": {
     "resolution_level": 1,
-    "max_resolution": 1024,
+    "min_resolution": 640,
+    "max_resolution": 1024
+  },
+  "c": {
     "number_views": 6,
     "openmvs_threads": 24
   },
   "external_depth_fusion": {
-    "resolution_level": 0,
-    "max_resolution": 1024,
     "number_views_fuse": 2,
+    "fusion_filter": 2,
     "geometric_iters": 0,
     "postprocess_dmaps": 0,
     "estimate_colors": 1,

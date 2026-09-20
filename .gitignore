@@ -16,7 +16,11 @@ configs/paths.local.json
 *.ckpt
 *.pth
 *.pt
+/models/torch/hub/trusted_list
 
 # Python caches
 __pycache__/
 *.pyc
+
+# Local generated Markdown workspace
+/md/

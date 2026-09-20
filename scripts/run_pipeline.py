@@ -54,6 +54,8 @@ class Pipeline:
         self.branch_root = self.work / "branches"
         self.a_depth = self.branch_root / "a_mapanything"
         self.b_depth = self.branch_root / "b_mvsanywhere"
+        self.a_openmvs_input = self.branch_root / "a_openmvs_input"
+        self.b_openmvs_input = self.branch_root / "b_openmvs_input"
         self.a_openmvs = self.branch_root / "a_openmvs"
         self.b_openmvs = self.branch_root / "b_openmvs"
         self.c_openmvs = self.branch_root / "c_openmvs"
@@ -70,6 +72,15 @@ class Pipeline:
         if self.base_env.get("PYTHONPATH"):
             python_path.append(self.base_env["PYTHONPATH"])
         self.base_env["PYTHONPATH"] = os.pathsep.join(python_path)
+        dense = self.config["openmvs_dense_resolution"]
+        if int(dense["resolution_level"]) < 0:
+            raise ValueError("openmvs_dense_resolution.resolution_level must be >= 0")
+        if int(dense["min_resolution"]) <= 0:
+            raise ValueError("openmvs_dense_resolution.min_resolution must be > 0")
+        if int(dense["max_resolution"]) < int(dense["min_resolution"]):
+            raise ValueError(
+                "openmvs_dense_resolution.max_resolution must be >= min_resolution"
+            )
 
     def step(self, name: str, command: list[Path | str], marker: Path | None = None) -> None:
         printable = subprocess.list2cmdline([str(value) for value in command])
@@ -197,6 +208,7 @@ class Pipeline:
 
     def c_geometry(self) -> None:
         cfg = self.config["c"]
+        dense = self.config["openmvs_dense_resolution"]
         if not self.dry_run:
             self.c_openmvs.mkdir(parents=True, exist_ok=True)
         self.step(
@@ -225,9 +237,11 @@ class Pipeline:
                 "-o",
                 "scene_dense.mvs",
                 "--resolution-level",
-                str(cfg["resolution_level"]),
+                str(dense["resolution_level"]),
+                "--min-resolution",
+                str(dense["min_resolution"]),
                 "--max-resolution",
-                str(cfg["max_resolution"]),
+                str(dense["max_resolution"]),
                 "--number-views",
                 str(cfg["number_views"]),
                 "--max-threads",
@@ -238,25 +252,25 @@ class Pipeline:
 
     def reconstruct(self, prefix: str, folder: Path, threads: int) -> None:
         cfg = self.config["mesh"]
+        command: list[str | Path] = [
+            self.exe("ReconstructMesh.exe"),
+            "-w",
+            folder,
+            "-i",
+            "scene_dense.mvs",
+            "-o",
+            "scene_mesh.mvs",
+            "--remove-spurious",
+            str(cfg["remove_spurious"]),
+            "--close-holes",
+            str(cfg["close_holes"]),
+            "--smooth",
+            str(cfg["smooth"]),
+        ]
+        command.extend(["--max-threads", str(threads)])
         self.step(
             f"{prefix}-reconstruct",
-            [
-                self.exe("ReconstructMesh.exe"),
-                "-w",
-                folder,
-                "-i",
-                "scene_dense.mvs",
-                "-o",
-                "scene_mesh.mvs",
-                "--remove-spurious",
-                str(cfg["remove_spurious"]),
-                "--close-holes",
-                str(cfg["close_holes"]),
-                "--smooth",
-                str(cfg["smooth"]),
-                "--max-threads",
-                str(threads),
-            ],
+            command,
             folder / "scene_mesh.ply",
         )
 
@@ -319,6 +333,7 @@ class Pipeline:
 
     def external_fusion(self, prefix: str, folder: Path, threads: int) -> None:
         cfg = self.config["external_depth_fusion"]
+        dense = self.config["openmvs_dense_resolution"]
         self.step(
             f"{prefix}-fuse",
             [
@@ -330,11 +345,15 @@ class Pipeline:
                 "-o",
                 "scene_dense.mvs",
                 "--resolution-level",
-                str(cfg["resolution_level"]),
+                str(dense["resolution_level"]),
+                "--min-resolution",
+                str(dense["min_resolution"]),
                 "--max-resolution",
-                str(cfg["max_resolution"]),
+                str(dense["max_resolution"]),
                 "--number-views-fuse",
                 str(cfg["number_views_fuse"]),
+                "--fusion-filter",
+                str(cfg["fusion_filter"]),
                 "--geometric-iters",
                 str(cfg["geometric_iters"]),
                 "--postprocess-dmaps",
@@ -349,6 +368,95 @@ class Pipeline:
                 str(threads),
             ],
             folder / "scene_dense.mvs",
+        )
+
+    def prepare_external_handoff(
+        self,
+        branch: str,
+        step_prefix: str,
+        depth: Path,
+        canonical: Path,
+        staging: Path,
+    ) -> None:
+        dense = self.config["openmvs_dense_resolution"]
+        self.step(
+            f"{step_prefix}-{branch}-export-dmap",
+            [
+                self.map_python,
+                self.script("export_model_depths_to_openmvs.py"),
+                "--template-dmaps",
+                self.c_openmvs,
+                "--scene",
+                self.c_openmvs / "scene.mvs",
+                "--depth",
+                depth,
+                "--output",
+                canonical,
+                "--resolution-level",
+                str(dense["resolution_level"]),
+                "--min-resolution",
+                str(dense["min_resolution"]),
+                "--max-resolution",
+                str(dense["max_resolution"]),
+            ],
+            canonical / "dmap-export.json",
+        )
+        validation_report = self.branch_root / f"{branch}_handoff_validation.json"
+        self.step(
+            f"{step_prefix}a-{branch}-validate-dmap",
+            [
+                self.map_python,
+                self.script("validate_openmvs_handoff.py"),
+                "--dmaps",
+                canonical,
+                "--template-dmaps",
+                self.c_openmvs,
+                "--manifest",
+                canonical / "dmap-export.json",
+                "--resolution-level",
+                str(dense["resolution_level"]),
+                "--min-resolution",
+                str(dense["min_resolution"]),
+                "--max-resolution",
+                str(dense["max_resolution"]),
+                "--report",
+                validation_report,
+            ],
+            validation_report,
+        )
+        self.step(
+            f"{step_prefix}b-{branch}-stage-openmvs",
+            [
+                self.map_python,
+                self.script("stage_openmvs_handoff.py"),
+                "stage",
+                "--source",
+                canonical,
+                "--output",
+                staging,
+            ],
+            staging / "staging-manifest.json",
+        )
+
+    def verify_external_handoff(
+        self,
+        branch: str,
+        step_prefix: str,
+        staging: Path,
+    ) -> None:
+        report = self.branch_root / f"{branch}_handoff_immutability.json"
+        self.step(
+            f"{step_prefix}-{branch}-verify-handoff",
+            [
+                self.map_python,
+                self.script("stage_openmvs_handoff.py"),
+                "verify",
+                "--manifest",
+                staging / "staging-manifest.json",
+                "--report",
+                report,
+            ],
+            report,
         )
 
     def branch_a(self, cameras: Path, source_width: int, source_height: int) -> None:
@@ -436,24 +544,12 @@ class Pipeline:
             ],
             optimized / "consistency_manifest.json",
         )
-        self.step(
-            "23-a-export-dmap",
-            [
-                self.map_python,
-                self.script("export_model_depths_to_openmvs.py"),
-                "--template-dmaps",
-                self.c_openmvs,
-                "--scene",
-                self.c_openmvs / "scene.mvs",
-                "--depth",
-                optimized,
-                "--output",
-                self.a_openmvs,
-            ],
-            self.a_openmvs / "dmap-export.json",
+        self.prepare_external_handoff(
+            "a", "23", optimized, self.a_openmvs_input, self.a_openmvs
         )
         threads = int(cfg["openmvs_threads"])
         self.external_fusion("24-a", self.a_openmvs, threads)
+        self.verify_external_handoff("a", "24a", self.a_openmvs)
         self.reconstruct("25-a", self.a_openmvs, threads)
         self.texture("26-a", self.a_openmvs, "A-v4")
 
@@ -544,24 +640,12 @@ class Pipeline:
             ],
             optimized / "consistency_manifest.json",
         )
-        self.step(
-            "33-b-export-dmap",
-            [
-                self.map_python,
-                self.script("export_model_depths_to_openmvs.py"),
-                "--template-dmaps",
-                self.c_openmvs,
-                "--scene",
-                self.c_openmvs / "scene.mvs",
-                "--depth",
-                optimized,
-                "--output",
-                self.b_openmvs,
-            ],
-            self.b_openmvs / "dmap-export.json",
+        self.prepare_external_handoff(
+            "b", "33", optimized, self.b_openmvs_input, self.b_openmvs
         )
         threads = int(cfg["openmvs_threads"])
         self.external_fusion("34-b", self.b_openmvs, threads)
+        self.verify_external_handoff("b", "34a", self.b_openmvs)
         self.reconstruct("35-b", self.b_openmvs, threads)
         self.texture("36-b", self.b_openmvs, "B-v2")
 

@@ -90,6 +90,12 @@ def main() -> None:
     parser.add_argument("--cameras", type=Path, required=True)
     parser.add_argument("--images", type=Path, required=True)
     parser.add_argument("--camera-name", default="r_0.png")
+    parser.add_argument(
+        "--scale",
+        type=float,
+        default=1.0,
+        help="Preview scale in (0, 1]; intrinsics are scaled consistently.",
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("meshes", nargs="+", help="label=path pairs")
     args = parser.parse_args()
@@ -98,6 +104,20 @@ def main() -> None:
     names = [str(value) for value in data["names"]]
     camera_index = names.index(args.camera_name)
     source = Image.open(args.images / args.camera_name).convert("RGBA")
+    if not 0 < args.scale <= 1:
+        raise ValueError("--scale must be in (0, 1]")
+    original_size = source.size
+    if args.scale != 1:
+        source = source.resize(
+            (
+                max(1, int(round(source.width * args.scale))),
+                max(1, int(round(source.height * args.scale))),
+            ),
+            Image.Resampling.LANCZOS,
+        )
+    intrinsics = np.asarray(data["intrinsics"][camera_index], dtype=np.float64).copy()
+    intrinsics[0] *= source.width / original_size[0]
+    intrinsics[1] *= source.height / original_size[1]
     background = Image.new("RGBA", source.size, "white")
     background.alpha_composite(source)
     panels = [label(background.convert("RGB"), f"input: {args.camera_name}")]
@@ -107,7 +127,7 @@ def main() -> None:
         label_text, raw_path = item.split("=", 1)
         rendered, stats = render(
             Path(raw_path),
-            data["intrinsics"][camera_index],
+            intrinsics,
             data["camera_poses"][camera_index],
             (source.height, source.width),
         )

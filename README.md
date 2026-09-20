@@ -19,24 +19,29 @@ PNG/JPG/JPEG
   → 相机导出与 OpenMVS 场景准备
   → C 分支 PatchMatch 深度（同时生成 A/B 所需的 DMAP 模板）
   ├─→ C：融合 → ReconstructMesh → TextureMesh
-  ├─→ A：MapAnything → 稀疏尺度校正 → 跨视角 v4 → DMAP
-  │       → OpenMVS 融合 → ReconstructMesh → TextureMesh
-  └─→ B：MVSAnywhere → 稀疏尺度校正 → 跨视角 v2 → DMAP
-          → OpenMVS 融合 → ReconstructMesh → TextureMesh
+  ├─→ A：MapAnything → 稀疏尺度校正 → 跨视角 v4 → DMAP Adapter
+  │       → Validator → immutable canonical → 单次 staging
+  │       → OpenMVS filter=2 融合 → ReconstructMesh → TextureMesh
+  └─→ B：MVSAnywhere → 稀疏尺度校正 → 跨视角 v2 → DMAP Adapter
+          → Validator → immutable canonical → 单次 staging
+          → OpenMVS filter=2 融合 → ReconstructMesh → TextureMesh
   → OBJ/MTL/JPG/GLB 归一化与加载验证
 ```
 
-A/B 均依赖 C 分支生成与相机一致的 DMAP 模板。因此，即使只选择 A 或 B，C 的相机转换和 PatchMatch 稠密化仍会执行，但不会生成 C 的最终纹理网格。A/B 推理使用 `--skip-tsdf`，不生成被 OpenMVS 后端替代的 Open3D TSDF 临时网格。
+A/B 均依赖 C 分支生成与相机一致的 DMAP 模板。因此，即使只选择 A 或 B，C 的相机转换和 PatchMatch 稠密化仍会执行，但不会生成 C 的最终纹理网格。A/B 推理使用 `--skip-tsdf`，不生成被 OpenMVS 后端替代的 Open3D TSDF 临时网格。Adapter 输出 depth+confidence type-5 DMAP；Validator 在 OpenMVS 启动前检查尺寸、相机、view ID、payload 长度、数值范围和反投影稳定性。融合只操作 staging 副本，并在运行后复核 canonical SHA-256。
 
 当前关键参数由 [`configs/pipeline.json`](configs/pipeline.json) 统一管理：
 
 - A-v4：批量大小 12，7 个相邻视角，内部最少支持数 1、边缘最少支持数 2，相对深度阈值 0.05，重投影阈值 2 px；
 - B-v2：7 个源视角，1 次 refinement，7 个相邻视角，最少支持数 2，相对深度阈值 0.04，重投影阈值 2 px；
 - A/B：每张图至少使用 30 个 COLMAP 稀疏点完成尺度校正；
-- C：最大深度分辨率 1024，PatchMatch 使用 6 个视角；
+- C 与 A/B 共用稠密分辨率契约：`resolution-level=1`、`min-resolution=640`、`max-resolution=1024`；
+- C 的 PatchMatch 使用 6 个视角；A/B 正式融合使用 `number-views-fuse=2`、`fusion-filter=2`；
 - 网格：去除孤立成分 4、补洞 30、平滑 2；纹理最大尺寸 8192。
 
 ## 快速开始
+
+*我觉得还是别开始了，光配置配半天，还是脆弱的windows环境（不必移除，这只是一句吐槽）*
 
 ### 1. 配置本机环境
 
@@ -125,6 +130,10 @@ Re3D/
 │   ├── calibrate_depths_to_colmap_sparse.py
 │   ├── optimize_multiview_depths.py
 │   ├── export_model_depths_to_openmvs.py
+│   ├── openmvs_dmap.py             # DMAP 读写与格式定义
+│   ├── validate_openmvs_handoff.py # 融合前只读接口校验
+│   ├── stage_openmvs_handoff.py    # canonical/staging 隔离和哈希复核
+│   ├── evaluate_mesh_quality.py    # 网格连通性与边界指标
 │   ├── normalize_openmvs_output.py
 │   └── validate_outputs.py
 ├── vendor/                         # 固定的第三方源码和 OpenMVS 二进制
@@ -140,9 +149,9 @@ Re3D/
 
 ## 续跑与实验隔离
 
-编排器以阶段产物作为完成标记。标记存在时会跳过对应阶段，不会自动覆盖已经完成的结果；失败阶段可在修复问题后使用相同命令继续执行。
+编排器以阶段产物作为完成标记。标记存在时会跳过对应阶段，不会自动覆盖已经完成的结果；失败阶段可在修复问题后使用相同命令继续执行。A/B 的 canonical DMAP 与 OpenMVS 可变运行目录分离；staging 必须为空，且会在启动融合前验证 scene 中的相对图像路径。
 
-修改模型、输入或 [`configs/pipeline.json`](configs/pipeline.json) 后，已有完成标记不会自动失效。进行参数对比或从头重建时，应使用新的 `Scene` 名称，避免新旧产物混用。确认最终结果后，可以手动归档或删除 `work/<scene>`；程序不会自动清理中间数据。
+修改模型、输入或 [`configs/pipeline.json`](configs/pipeline.json) 后，已有完成标记不会自动失效。进行参数对比或从头重建时，应使用新的 `Scene` 名称，避免新旧产物混用。确认最终结果后，可以手动归档或删除 `work/<scene>`；程序不会自动清理中间数据，后续需要设置独立的测试报告文件夹，按实验名称和时间，多文件层次输出。
 
 ## 输出与评估
 
@@ -166,6 +175,9 @@ outputs/<scene>/
 | 相机重建 | `work/<scene>/shared/colmap/reconstruction_metrics.json` | 检查注册图像数和稀疏重建质量 |
 | A/B 尺度校正 | `sparse_calibration_manifest.json` | 检查每张图的稀疏点数量和尺度估计 |
 | A/B 跨视角过滤 | `consistency_manifest.json` | 检查深度保留率和一致性过滤结果 |
+| A/B DMAP 导出 | `dmap-export.json` | 记录 schema、深度/置信度语义、来源哈希、相机模板和分辨率契约 |
+| A/B 接口校验 | `<branch>_handoff_validation.json` | 在融合前检查 DMAP 格式、相机、view ID、数值和重投影稳定性 |
+| A/B 输入隔离 | `staging-manifest.json`、`<branch>_handoff_immutability.json` | 记录复制哈希并确认 canonical 未被 OpenMVS 修改 |
 | 最终验证 | `outputs/<scene>/validation.json` | 检查 OBJ、MTL、纹理和 GLB 是否可加载 |
 | 阶段日志 | `logs/<scene>/*.log` | 定位外部程序或脚本失败原因 |
 
@@ -192,4 +204,4 @@ outputs/<scene>/
 
 ## 第三方许可
 
-第三方源码、模型权重和二进制文件分别受各自许可约束。使用或分发前请阅读 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) 以及各上游项目附带的许可文件。
+第三方源码、模型权重和二进制文件分别受各自许可约束。使用或分发前请阅读 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) 以及各上游项目附带的许可文件。虽然感觉就此综设项目而言估计没啥必要，但是版权还是很重要的就留着吧。
