@@ -84,6 +84,21 @@ class Pipeline:
         c_ignore_mask_label = int(self.config["c"]["ignore_mask_label"])
         if not 0 <= c_ignore_mask_label <= 255:
             raise ValueError("c.ignore_mask_label must be between 0 and 255")
+        deferred = self.config["camera_frontend"]["deferred_registration"]
+        if not 0 < float(deferred["relative_observation_floor"]) < 1:
+            raise ValueError(
+                "camera_frontend.deferred_registration.relative_observation_floor "
+                "must be between 0 and 1"
+            )
+        if not 0 < float(deferred["minimum_triangulated_ratio"]) < 1:
+            raise ValueError(
+                "camera_frontend.deferred_registration.minimum_triangulated_ratio "
+                "must be between 0 and 1"
+            )
+        if int(deferred["max_images"]) < 1:
+            raise ValueError(
+                "camera_frontend.deferred_registration.max_images must be >= 1"
+            )
 
     def step(self, name: str, command: list[Path | str], marker: Path | None = None) -> None:
         printable = subprocess.list2cmdline([str(value) for value in command])
@@ -162,20 +177,43 @@ class Pipeline:
         masks = self.input / "masks"
         colmap = self.shared / "colmap"
         cameras = self.shared / "cameras_refined.npz"
+        camera_cfg = self.config["camera_frontend"]
+        deferred = camera_cfg["deferred_registration"]
+        colmap_command: list[Path | str] = [
+            self.map_python,
+            self.script("run_colmap_shared.py"),
+            "--images",
+            images,
+            "--masks",
+            masks,
+            "--output",
+            colmap,
+            "--camera-model",
+            camera_cfg["camera_model"],
+            "--random-seed",
+            str(camera_cfg["random_seed"]),
+        ]
+        if deferred["enabled"]:
+            colmap_command.extend(
+                [
+                    "--deferred-registration",
+                    "--defer-relative-observation-floor",
+                    str(deferred["relative_observation_floor"]),
+                    "--defer-min-triangulated-ratio",
+                    str(deferred["minimum_triangulated_ratio"]),
+                    "--defer-max-images",
+                    str(deferred["max_images"]),
+                    "--retry-abs-pose-max-error",
+                    str(deferred["retry_abs_pose_max_error"]),
+                    "--retry-abs-pose-min-num-inliers",
+                    str(deferred["retry_abs_pose_min_num_inliers"]),
+                    "--retry-abs-pose-min-inlier-ratio",
+                    str(deferred["retry_abs_pose_min_inlier_ratio"]),
+                ]
+            )
         self.step(
             "01-colmap",
-            [
-                self.map_python,
-                self.script("run_colmap_shared.py"),
-                "--images",
-                images,
-                "--masks",
-                masks,
-                "--output",
-                colmap,
-                "--camera-model",
-                self.config["camera_frontend"]["camera_model"],
-            ],
+            colmap_command,
             colmap / "reconstruction_metrics.json",
         )
         self.step(

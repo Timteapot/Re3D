@@ -229,6 +229,33 @@ class PipelineConfigTests(unittest.TestCase):
             str(pipeline.config["c"]["ignore_mask_label"]),
         )
 
+    def test_colmap_enables_deferred_registration_from_config(self) -> None:
+        pipeline = self.make_pipeline()
+        commands: list[list[str]] = []
+
+        def collect(_name, command, _marker=None):
+            commands.append([str(value) for value in command])
+
+        pipeline.step = collect  # type: ignore[method-assign]
+        pipeline.cameras()
+        colmap = next(
+            command for command in commands if command[1].endswith("run_colmap_shared.py")
+        )
+        deferred = pipeline.config["camera_frontend"]["deferred_registration"]
+        self.assertIn("--deferred-registration", colmap)
+        self.assertEqual(
+            colmap[colmap.index("--defer-relative-observation-floor") + 1],
+            str(deferred["relative_observation_floor"]),
+        )
+        self.assertEqual(
+            colmap[colmap.index("--retry-abs-pose-min-num-inliers") + 1],
+            str(deferred["retry_abs_pose_min_num_inliers"]),
+        )
+        self.assertEqual(
+            colmap[colmap.index("--random-seed") + 1],
+            str(pipeline.config["camera_frontend"]["random_seed"]),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

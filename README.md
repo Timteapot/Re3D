@@ -15,7 +15,8 @@ Re3D 是一套面向多视图照片的三分支 3D 重建管线。三个分支�
 ```text
 PNG/JPG/JPEG
   → 输入校验、复制、alpha 掩码与哈希清单
-  → pycolmap CPU SIFT 特征、穷举匹配、增量建图
+  → pycolmap CPU SIFT 特征、穷举匹配、固定随机种子的增量建图
+  → 逐图稀疏观测质量门控；低置信度视角移出核心模型后延迟重注册
   → 相机导出与 OpenMVS 场景准备
   → C 分支使用显式 alpha mask 的 PatchMatch 深度（同时生成 A/B 所需的 DMAP 模板）
   ├─→ C：融合 → ReconstructMesh → TextureMesh
@@ -35,6 +36,7 @@ A/B 均依赖 C 分支生成与相机一致的 DMAP 模板。因此，即使只�
 - A-v4：批量大小 12，7 个相邻视角，内部最少支持数 1、边缘最少支持数 2，相对深度阈值 0.05，重投影阈值 2 px；
 - B-v2：7 个源视角，1 次 refinement，7 个相邻视角，最少支持数 2，相对深度阈值 0.04，重投影阈值 2 px；
 - A/B：每张图至少使用 30 个 COLMAP 稀疏点完成尺度校正；
+- COLMAP：低于场景三角化观测中位数 15% 且特征三角化率低于 5% 的视角进入延迟队列；固定核心相机后，以更严格的绝对位姿阈值重试，仍不可靠的视角不进入后续分支；
 - C 与 A/B 共用稠密分辨率契约：`resolution-level=1`、`min-resolution=640`、`max-resolution=1024`；
 - C 的 PatchMatch 使用 6 个视角，并通过 `mask-path`、`ignore-mask-label=0` 排除透明背景；A/B 正式融合使用 `number-views-fuse=2`、`fusion-filter=2`；
 - 网格：去除孤立成分 4、补洞 30、平滑 2；纹理最大尺寸 8192。

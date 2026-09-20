@@ -14,7 +14,17 @@
   "camera_frontend": {
     "implementation": "pycolmap CPU SIFT + exhaustive matching + incremental mapping",
     "camera_model": "PINHOLE",
-    "camera_mode": "SINGLE"
+    "camera_mode": "SINGLE",
+    "random_seed": 0,
+    "deferred_registration": {
+      "enabled": true,
+      "relative_observation_floor": 0.15,
+      "minimum_triangulated_ratio": 0.05,
+      "max_images": 5,
+      "retry_abs_pose_max_error": 6.0,
+      "retry_abs_pose_min_num_inliers": 80,
+      "retry_abs_pose_min_inlier_ratio": 0.3
+    }
   },
   "a_v4": {
     "model": "models/mapanything",
