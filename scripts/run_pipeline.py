@@ -11,6 +11,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OPENMVS = ROOT / "vendor/openmvs-2.4.0-windows/vc17/x64/Release"
+DEFAULT_TEXTUREMESH = (
+    ROOT
+    / "vendor/openmvs-2.4.0-33d9484-windows/vc18/x64/Release/TextureMesh.exe"
+)
+LEGACY_TEXTUREMESH = DEFAULT_OPENMVS / "TextureMesh.exe"
 
 
 def read_json(path: Path) -> dict:
@@ -29,7 +34,7 @@ def resolve_texturemesh_path(local_paths: dict) -> Path:
     return (
         resolve_runtime_path(configured)
         if configured
-        else DEFAULT_OPENMVS / "TextureMesh.exe"
+        else DEFAULT_TEXTUREMESH
     )
 
 
@@ -64,9 +69,10 @@ class Pipeline:
             int(texture["global_seam_leveling"])
             or int(texture["local_seam_leveling"])
         )
-        if seam_leveling_enabled and self.texturemesh.resolve() == (
-            DEFAULT_OPENMVS / "TextureMesh.exe"
-        ).resolve():
+        if (
+            seam_leveling_enabled
+            and self.texturemesh.resolve() == LEGACY_TEXTUREMESH.resolve()
+        ):
             raise ValueError(
                 "Seam leveling is unsafe with the bundled OpenMVS 2.4.0 TextureMesh; "
                 "set RE3D_TEXTUREMESH_EXE or paths.local.json:texturemesh_executable "

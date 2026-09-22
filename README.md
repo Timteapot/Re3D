@@ -1,5 +1,12 @@
 # Re3D
 
+稳定文档入口：
+
+- [管线架构与 A/B/C 调用链](docs/architecture/pipeline.md)
+- [OpenMVS 与修复版 TextureMesh 恢复说明](docs/build/openmvs.md)
+- [版本与提交变更记录](CHANGELOG.md)
+- [Python 环境重建说明](environments/README.md)
+
 ## 当前技术管线
 
 Re3D 是一套面向多视图照片的三分支 3D 重建管线。三个分支共享 COLMAP 相机估计和 OpenMVS 网格/纹理后端，用于比较学习型深度与传统 PatchMatch 深度在同一相机、融合和纹理条件下的结果。
@@ -31,6 +38,17 @@ PNG/JPG/JPEG
 
 A/B 均依赖 C 分支生成与相机一致的 DMAP 模板。因此，即使只选择 A 或 B，C 的相机转换和 PatchMatch 稠密化仍会执行，但不会生成 C 的最终纹理网格。A/B 推理使用 `--skip-tsdf`，不生成被 OpenMVS 后端替代的 Open3D TSDF 临时网格。Adapter 输出 depth+confidence type-5 DMAP；Validator 在 OpenMVS 启动前检查尺寸、相机、view ID、payload 长度、数值范围和反投影稳定性。融合只操作 staging 副本，并在运行后复核 canonical SHA-256。
 
+当前 `main` 使用混合 OpenMVS 调用：
+
+| 阶段 | 可执行文件 | 来源 |
+|---|---|---|
+| COLMAP 转换 | `InterfaceCOLMAP.exe` | 仓库内 `vendor/openmvs-2.4.0-windows/vc17/x64/Release` |
+| PatchMatch 与 A/B DMAP 融合 | `DensifyPointCloud.exe` | 同一原 vendor VC17 Release |
+| 网格重建 | `ReconstructMesh.exe` | 同一原 vendor VC17 Release |
+| 纹理化 | `TextureMesh.exe` | 仓库内 `vendor/openmvs-2.4.0-33d9484-windows/vc18/x64/Release`；可由本机配置或环境变量覆盖 |
+
+修复版 `TextureMesh.exe` 与同次构建的 `MVS.dll`、`Common.dll`、`IO.dll`、`Math.dll`、OpenCV/Boost DLL 和其余传递依赖作为完整 VC18 Release 目录纳入 `vendor`。不能只把新 exe 复制到旧 VC17 目录。来源、校验值和源码恢复方法见 [OpenMVS 构建文档](docs/build/openmvs.md)。
+
 当前关键参数由 [`configs/pipeline.json`](configs/pipeline.json) 统一管理：
 
 - A-v4：批量大小 12，7 个相邻视角，内部最少支持数 1、边缘最少支持数 2，相对深度阈值 0.05，重投影阈值 2 px；
@@ -47,7 +65,7 @@ A/B 均依赖 C 分支生成与相机一致的 DMAP 模板。因此，即使只�
 
 ### 1. 配置本机环境
 
-首次使用时，从示例创建本机配置并填写两个 Python 解释器路径：
+首次使用时，从示例创建本机配置并填写两个 Python 解释器路径。修复版 TextureMesh 完整 Release 已随仓库保存在 `vendor`，正常克隆不需要另行下载：
 
 ```powershell
 cd D:\3Dreconstruction\Re3D
@@ -59,12 +77,20 @@ Copy-Item .\configs\paths.example.json .\configs\paths.local.json
 ```powershell
 $env:RE3D_MAP_PYTHON = 'D:\envs\mapanything\python.exe'
 $env:RE3D_MVS_PYTHON = 'D:\envs\mvsanywhere\python.exe'
+$env:RE3D_TEXTUREMESH_EXE = 'D:\openmvs-fixed\vc18\x64\Release\TextureMesh.exe'
 ```
 
-如需实验性重新启用 OpenMVS 全局或局部接缝平衡，必须通过
-`configs/paths.local.json` 的 `texturemesh_executable` 或环境变量
-`RE3D_TEXTUREMESH_EXE` 指向包含上游修复 `eeedab7` 的 `TextureMesh.exe`。
-管线会拒绝让仓库自带的 OpenMVS 2.4.0 构建执行接缝平衡，以避免已知的大面积黑纹理回归。
+`RE3D_TEXTUREMESH_EXE` 的优先级高于 `configs/paths.local.json`；两者均未指定时，管线默认使用 `vendor/openmvs-2.4.0-33d9484-windows/vc18/x64/Release/TextureMesh.exe`。示例配置使用同一仓库相对路径，不包含本机专用绝对路径。如需实验性重新启用 OpenMVS 全局或局部接缝平衡，管线会拒绝让旧 VC17 OpenMVS 2.4.0 TextureMesh 执行该操作，以避免已知的大面积黑纹理回归。
+
+### 2. 必要依赖与资源
+
+- Windows PowerShell；
+- MapAnything：Python 3.12、PyTorch 2.7.1+cu128 及 [`environments/README.md`](environments/README.md) 所列依赖；
+- MVSAnywhere：Python 3.10、PyTorch 2.1.2+cu118 及同文档所列依赖；
+- 与驱动兼容的 NVIDIA CUDA 运行环境；
+- 仓库内 vendor 源码和原 OpenMVS VC17 几何工具；
+- 仓库内修复版 OpenMVS VC18 `TextureMesh.exe` 的完整 Release 目录；
+- 下列三个不纳入 Git 的模型权重。
 
 大型模型权重不纳入 Git，运行前需确认以下文件存在：
 
@@ -74,15 +100,15 @@ models/mvsanywhere/mvsanywhere_hero.ckpt
 models/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth
 ```
 
-### 2. 检查依赖
+### 3. 检查依赖
 
 ```powershell
 .\doctor.ps1
 ```
 
-检查项包括两个 Python 环境、核心 Python 包、模型权重、第三方源码和 OpenMVS 可执行文件。
+检查项包括两个 Python 环境、核心 Python 包、模型权重、第三方源码、原 OpenMVS 几何工具和当前解析到的 TextureMesh。`doctor.ps1` 只检查文件存在与 Python 导入；修复版 DLL 完整性和二进制身份还应按 [OpenMVS 验证命令](docs/build/openmvs.md#验证命令) 检查。
 
-### 3. 预览或运行
+### 4. 预览或运行
 
 先预览命令而不执行重建：
 
@@ -124,10 +150,14 @@ models/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth
 Re3D/
 ├── run.ps1                         # PowerShell 统一入口
 ├── doctor.ps1                      # 环境和资源检查
+├── CHANGELOG.md                    # 版本和提交行为变化
 ├── configs/
 │   ├── pipeline.json               # 当前管线参数
 │   ├── paths.example.json          # 本机路径配置示例
 │   └── paths.local.json            # 本机路径配置，不纳入 Git
+├── docs/
+│   ├── architecture/pipeline.md     # A/B/C 调用链和文件位置
+│   └── build/openmvs.md             # 修复版 TextureMesh 的恢复与验证
 ├── scripts/
 │   ├── run_pipeline.py             # 阶段编排、缓存和日志
 │   ├── prepare_dataset.py          # 输入、掩码与哈希清单
@@ -143,16 +173,17 @@ Re3D/
 │   ├── evaluate_mesh_quality.py    # 网格连通性与边界指标
 │   ├── normalize_openmvs_output.py
 │   └── validate_outputs.py
-├── vendor/                         # 固定的第三方源码和 OpenMVS 二进制
+├── vendor/                         # 固定的第三方源码、VC17 几何工具和 VC18 纹理运行包
 ├── models/                         # 模型配置、权重和 DINOv2 缓存
 ├── environments/                   # 可复现环境的依赖快照
+├── .cache/                         # 下载包、源码构建等本机缓存，不纳入 Git
 ├── data/scenes/                    # 可选的本地输入区
 ├── work/<scene>/                   # 相机、深度、DMAP、点云与网格中间文件
 ├── outputs/<scene>/                # 最终模型和验证报告
 └── logs/<scene>/                   # 每个阶段的完整日志
 ```
 
-`work/`、`outputs/`、`logs/`、本机环境、输入场景和模型权重默认不纳入 Git。
+受 Git 管理的稳定内容包括 `README.md`、`CHANGELOG.md`、`docs/`、`configs/paths.example.json`、`configs/pipeline.json`、`environments/README.md`，以及 `vendor` 下两套 OpenMVS 运行目录。`work/`、`outputs/`、`logs/`、`.cache/`、`md/`、`configs/paths.local.json`、`environments/runtime/`、本地输入场景和模型权重默认不纳入 Git。
 
 ## 续跑与实验隔离
 
@@ -204,7 +235,8 @@ outputs/<scene>/
 
 - MapAnything：Python 3.12、PyTorch 2.7.1+cu128；
 - MVSAnywhere：Python 3.10、PyTorch 2.1.2+cu118；
-- OpenMVS：2.4.0 Windows VC17 x64；
+- OpenMVS 几何阶段：仓库内 2.4.0 Windows VC17 x64；
+- OpenMVS 纹理阶段：包含 `eeedab7` 的官方 VC18 x64 Release，当前固定构建为 `33d9484`；
 - MVSAnywhere 图像编码器依赖项目内的 DINOv2 源码缓存和 ViT-B/14 权重。
 
 `environments/` 保存 Conda 和 pip 依赖快照，具体重建步骤见 [`environments/README.md`](environments/README.md)。CUDA、显卡驱动和 PyTorch wheel 必须相互兼容。

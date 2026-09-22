@@ -224,6 +224,12 @@ class PipelineConfigTests(unittest.TestCase):
         pipeline.texture("test", pipeline.c_openmvs, "test-output")
         self.assertEqual(Path(commands[0][0]), fixed)
 
+    def test_default_texturemesh_uses_fixed_vendor_bundle(self) -> None:
+        from run_pipeline import DEFAULT_TEXTUREMESH, resolve_texturemesh_path
+
+        with mock.patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(resolve_texturemesh_path({}), DEFAULT_TEXTUREMESH)
+
     def test_bundled_texturemesh_is_rejected_when_seams_are_enabled(self) -> None:
         from run_pipeline import Pipeline
 
