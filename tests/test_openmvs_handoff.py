@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 
@@ -207,6 +208,51 @@ class PipelineConfigTests(unittest.TestCase):
             )
 
         self.assertEqual(resolution(densify_commands[0]), resolution(densify_commands[1]))
+
+    def test_texturemesh_executable_can_be_overridden(self) -> None:
+        fixed = ROOT / ".cache" / "openmvs-fixed" / "TextureMesh.exe"
+        with mock.patch.dict(
+            "os.environ", {"RE3D_TEXTUREMESH_EXE": str(fixed)}, clear=False
+        ):
+            pipeline = self.make_pipeline()
+        commands: list[list[str]] = []
+
+        def collect(_name, command, _marker=None):
+            commands.append([str(value) for value in command])
+
+        pipeline.step = collect  # type: ignore[method-assign]
+        pipeline.texture("test", pipeline.c_openmvs, "test-output")
+        self.assertEqual(Path(commands[0][0]), fixed)
+
+    def test_bundled_texturemesh_is_rejected_when_seams_are_enabled(self) -> None:
+        from run_pipeline import Pipeline
+
+        with tempfile.TemporaryDirectory() as temporary:
+            config = json.loads((ROOT / "configs" / "pipeline.json").read_text())
+            config["texture"]["global_seam_leveling"] = 1
+            config_path = Path(temporary) / "pipeline.json"
+            config_path.write_text(json.dumps(config), encoding="utf-8")
+            bundled = (
+                ROOT
+                / "vendor"
+                / "openmvs-2.4.0-windows"
+                / "vc17"
+                / "x64"
+                / "Release"
+                / "TextureMesh.exe"
+            )
+            with mock.patch.dict(
+                "os.environ", {"RE3D_TEXTUREMESH_EXE": str(bundled)}, clear=False
+            ):
+                with self.assertRaisesRegex(ValueError, "eeedab7"):
+                    Pipeline(
+                        scene="contract-test",
+                        images=None,
+                        branches={"c"},
+                        config_path=config_path,
+                        paths_path=ROOT / "configs" / "paths.local.json",
+                        dry_run=True,
+                    )
 
     def test_c_densify_explicitly_uses_alpha_masks(self) -> None:
         pipeline = self.make_pipeline()

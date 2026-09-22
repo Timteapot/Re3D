@@ -39,7 +39,7 @@ A/B 均依赖 C 分支生成与相机一致的 DMAP 模板。因此，即使只�
 - COLMAP：低于场景三角化观测中位数 15% 且特征三角化率低于 5% 的视角进入延迟队列；固定核心相机后，以更严格的绝对位姿阈值重试，仍不可靠的视角不进入后续分支；
 - C 与 A/B 共用稠密分辨率契约：`resolution-level=1`、`min-resolution=640`、`max-resolution=1024`；
 - C 的 PatchMatch 使用 6 个视角，并通过 `mask-path`、`ignore-mask-label=0` 排除透明背景；A/B 正式融合使用 `number-views-fuse=2`、`fusion-filter=2`；
-- 网格：去除孤立成分 4、补洞 30、平滑 2；纹理最大尺寸 8192。
+- 网格：去除孤立成分 4、补洞 30、平滑 2；纹理最大尺寸 8192；全局/局部接缝平衡默认关闭，保留锐度权重 `0.25` 和离群阈值 `0.06`。
 
 ## 快速开始
 
@@ -60,6 +60,11 @@ Copy-Item .\configs\paths.example.json .\configs\paths.local.json
 $env:RE3D_MAP_PYTHON = 'D:\envs\mapanything\python.exe'
 $env:RE3D_MVS_PYTHON = 'D:\envs\mvsanywhere\python.exe'
 ```
+
+如需实验性重新启用 OpenMVS 全局或局部接缝平衡，必须通过
+`configs/paths.local.json` 的 `texturemesh_executable` 或环境变量
+`RE3D_TEXTUREMESH_EXE` 指向包含上游修复 `eeedab7` 的 `TextureMesh.exe`。
+管线会拒绝让仓库自带的 OpenMVS 2.4.0 构建执行接缝平衡，以避免已知的大面积黑纹理回归。
 
 大型模型权重不纳入 Git，运行前需确认以下文件存在：
 

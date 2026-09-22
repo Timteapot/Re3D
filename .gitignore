@@ -21,6 +21,7 @@ configs/paths.local.json
 # Python caches
 __pycache__/
 *.pyc
+.cache/
 
 # Local generated Markdown workspace
 /md/

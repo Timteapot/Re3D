@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_OPENMVS = ROOT / "vendor/openmvs-2.4.0-windows/vc17/x64/Release"
 
 
 def read_json(path: Path) -> dict:
@@ -19,6 +20,17 @@ def read_json(path: Path) -> dict:
 def resolve_runtime_path(value: str) -> Path:
     path = Path(value).expanduser()
     return path if path.is_absolute() else ROOT / path
+
+
+def resolve_texturemesh_path(local_paths: dict) -> Path:
+    configured = os.environ.get("RE3D_TEXTUREMESH_EXE") or local_paths.get(
+        "texturemesh_executable"
+    )
+    return (
+        resolve_runtime_path(configured)
+        if configured
+        else DEFAULT_OPENMVS / "TextureMesh.exe"
+    )
 
 
 class Pipeline:
@@ -45,9 +57,21 @@ class Pipeline:
         self.mvs_python = resolve_runtime_path(
             os.environ.get("RE3D_MVS_PYTHON", self.local_paths["mvsanywhere_python"])
         )
-        self.openmvs = (
-            ROOT / "vendor/openmvs-2.4.0-windows/vc17/x64/Release"
+        self.openmvs = DEFAULT_OPENMVS
+        self.texturemesh = resolve_texturemesh_path(self.local_paths)
+        texture = self.config["texture"]
+        seam_leveling_enabled = bool(
+            int(texture["global_seam_leveling"])
+            or int(texture["local_seam_leveling"])
         )
+        if seam_leveling_enabled and self.texturemesh.resolve() == (
+            DEFAULT_OPENMVS / "TextureMesh.exe"
+        ).resolve():
+            raise ValueError(
+                "Seam leveling is unsafe with the bundled OpenMVS 2.4.0 TextureMesh; "
+                "set RE3D_TEXTUREMESH_EXE or paths.local.json:texturemesh_executable "
+                "to a build containing upstream fix eeedab7 before enabling it"
+            )
         self.work = ROOT / "work" / scene
         self.input = self.work / "input"
         self.shared = self.work / "shared"
@@ -324,7 +348,7 @@ class Pipeline:
         self.step(
             f"{prefix}-texture",
             [
-                self.exe("TextureMesh.exe"),
+                self.texturemesh,
                 "-w",
                 folder,
                 "-i",
@@ -748,10 +772,10 @@ def doctor(paths_path: Path) -> int:
         "dinov2_checkpoint": ROOT / "models/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth",
         "mapanything_source": ROOT / "vendor/map-anything/mapanything",
         "mvsanywhere_source": ROOT / "vendor/mvsanywhere/src/mvsanywhere",
-        "InterfaceCOLMAP": ROOT / "vendor/openmvs-2.4.0-windows/vc17/x64/Release/InterfaceCOLMAP.exe",
-        "DensifyPointCloud": ROOT / "vendor/openmvs-2.4.0-windows/vc17/x64/Release/DensifyPointCloud.exe",
-        "ReconstructMesh": ROOT / "vendor/openmvs-2.4.0-windows/vc17/x64/Release/ReconstructMesh.exe",
-        "TextureMesh": ROOT / "vendor/openmvs-2.4.0-windows/vc17/x64/Release/TextureMesh.exe",
+        "InterfaceCOLMAP": DEFAULT_OPENMVS / "InterfaceCOLMAP.exe",
+        "DensifyPointCloud": DEFAULT_OPENMVS / "DensifyPointCloud.exe",
+        "ReconstructMesh": DEFAULT_OPENMVS / "ReconstructMesh.exe",
+        "TextureMesh": resolve_texturemesh_path(local),
     }
     failed = False
     for name, path in checks.items():

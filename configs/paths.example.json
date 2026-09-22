@@ -1,4 +1,5 @@
 {
   "mapanything_python": "environments/runtime/mapanything/python.exe",
-  "mvsanywhere_python": "environments/runtime/mvsanywhere/python.exe"
+  "mvsanywhere_python": "environments/runtime/mvsanywhere/python.exe",
+  "texturemesh_executable": "vendor/openmvs-2.4.0-windows/vc17/x64/Release/TextureMesh.exe"
 }
