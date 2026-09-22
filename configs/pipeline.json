@@ -88,8 +88,8 @@
   "texture": {
     "global_seam_leveling": 0,
     "local_seam_leveling": 0,
-    "sharpness_weight": 0,
-    "outlier_threshold": 0,
+    "sharpness_weight": 0.25,
+    "outlier_threshold": 0.06,
     "ignore_mask_label": 0,
     "empty_color": 16777215,
     "max_texture_size": 8192,
