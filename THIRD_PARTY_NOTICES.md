@@ -4,7 +4,7 @@ Re3D 是用于学习、研究和实践真实 3D 重建项目流程的非商业�
 
 本文记录当前仓库已知的直接第三方资源、来源、固定版本、许可边界和部署展示要求。它不是法律意见。若项目用途、部署对象、权重来源或分发方式发生变化，应重新审查全部条款。
 
-## 使用与再分发是两件不同的事
+## 使用与再分发
 
 - 在本机或受控学习环境中运行第三方资源，不等于可以把其源码、模型权重或二进制文件重新打包发布。
 - 网页仅提供非商业学习演示时，仍应展示第三方署名、许可证链接、无担保说明及模型来源。
@@ -27,7 +27,7 @@ Re3D 是用于学习、研究和实践真实 3D 重建项目流程的非商业�
 
 模型文件未纳入 Git；文件身份由 [`models/checksums.json`](models/checksums.json) 记录。校验值只能证明文件未变化，不能单独证明下载来源或授权范围。
 
-## Python 直接运行时依赖
+## Python 直接运行依赖
 
 Re3D 自定义脚本直接使用下列主要 Python 包。具体版本以 [`environments/mapanything-pip-lock.txt`](environments/mapanything-pip-lock.txt)、[`environments/mvsanywhere-pip-lock.txt`](environments/mvsanywhere-pip-lock.txt) 和两个 Conda lock 文件为准。
 
@@ -44,7 +44,7 @@ Re3D 自定义脚本直接使用下列主要 Python 包。具体版本以 [`envi
 
 以上是直接依赖摘要，不是完整的传递依赖清单。部署镜像或安装包发布前，应从最终构建环境生成 Software Bill of Materials（SBOM）和对应许可证清单，而不能只依赖本文件。
 
-## 必须保留的 MVSAnywhere 署名
+## 保留 MVSAnywhere 署名
 
 使用 MVSAnywhere 的研究结果、演示或说明页面应按照其许可证要求确认作者和项目，并引用：
 
@@ -52,7 +52,7 @@ Re3D 自定义脚本直接使用下列主要 Python 包。具体版本以 [`envi
 
 完整 BibTeX 以 [MVSAnywhere 上游 README](https://github.com/nianticlabs/mvsanywhere#bibtex) 为准。
 
-## Web 部署时的展示要求
+## Web 部署展示要求
 
 后续网页至少应提供一个可从页脚访问的“第三方与许可证”页面，并展示：
 
