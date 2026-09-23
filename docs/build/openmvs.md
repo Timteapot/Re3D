@@ -1,6 +1,6 @@
 # OpenMVS 与修复版 TextureMesh
 
-本文记录当前 `main` 的 OpenMVS 二进制边界，以及修复版 `TextureMesh` 的版本控制和恢复方法。不要把本文理解为“整套 OpenMVS 已升级”：当前仅纹理进程使用修复版，几何阶段继续使用仓库内原版本。
+本文记录当前 `main` 的 OpenMVS 二进制边界，以及修复版 `TextureMesh` 的版本控制和恢复方法。当前仅纹理进程使用修复版，几何阶段继续使用仓库内原版本。
 
 ## 当前固定组合
 
@@ -27,18 +27,18 @@ OpenMVS 2.4.0 原构建在全局接缝平衡的边界情况下可能产生大面
 - 标题：`texture: fix corner case in global seam leveling logic`
 - 关键修改：`libs/Common/Types.inl` 与 `libs/MVS/SceneTexture.cpp`
 
-当前仓库固定的不是只打单行补丁的 2.4.0，而是包含该修复的后续官方 CI 构建：
+当前仓库固定包含该修复的后续官方 CI 构建：
 
 - OpenMVS commit：`33d9484`
-- GitHub Actions run：[`34769747527`](https://github.com/cdcseacave/openMVS/actions/runs/34769747527)，项目内称为 run 633
+- GitHub Actions run：[`34769747527`](https://github.com/cdcseacave/openMVS/actions/runs/34769747527)
 - artifact：`OpenMVS_Windows_Release_x64`
 - artifact 内目录：`vc18/x64/Release`
 - `TextureMesh --help` 标识：`OpenMVS x64 v2.4.0 (33d9484)`
-- 构建时间：`Sep 13 2026, 16:52:28`
+- 构建时间：`Sep 13 2026, 16:52:28`.
 
 上游构建说明要求 Git、CMake、支持 C++17 的编译器，并通过 vcpkg 管理依赖；Windows 官方 CI 使用 x64 Release、`x64-windows-release` triplet 和 `-A x64`。本项目把当前 artifact 的 `vc18` 目录视为编译 ABI 身份的一部分。若自行复现，应使用 Visual Studio/Build Tools 18 的“使用 C++ 的桌面开发”工作负载和 x64 工具链；改用其他 MSVC 主版本时，产物目录和校验值可能不同，必须重新做兼容性测试。
 
-## 为什么必须保留完整 Release 目录
+## 保留完整 Release 目录
 
 `TextureMesh.exe` 不是独立静态程序。当前修复构建的 Release 目录共有 86 个文件，至少直接或间接依赖：
 
