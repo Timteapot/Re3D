@@ -39,6 +39,21 @@ A/B 依赖 C 稠密化产生、且与相机一致的 DMAP 模板。即使 `-Bran
 
 输入图像带 alpha 时，准备阶段生成前景掩码；C 的 `DensifyPointCloud` 通过 `--mask-path` 和 `--ignore-mask-label 0` 排除透明背景。RGB/JPEG 没有透明信息，会得到全前景掩码。
 
+## 运行目录边界
+
+默认情况下，单个场景继续使用 `work/<scene>`、`outputs/<scene>` 和 `logs/<scene>`，保持现有脚本与历史运行兼容。编排器可以通过 `--work-dir`、`--output-dir`、`--log-dir` 为单次运行指定精确目录，或者使用 `RE3D_WORK_DIR`、`RE3D_OUTPUT_DIR`、`RE3D_LOG_DIR`。命令行参数优先于环境变量。
+
+这些参数只改变运行数据位置，不改变管线参数、模型、分支或产物命名。显式目录不会再追加 `scene`，因此 Web Worker 可以把一个 UUID 任务严格映射为：
+
+```text
+jobs/<job_uuid>/
+├── runtime/work/    # --work-dir
+├── runtime/logs/    # --log-dir
+└── output/          # --output-dir
+```
+
+Re3D 仍假设调用方可信，不负责鉴权或多租户路径隔离。公开服务必须在调用前完成 UUID、规范化绝对路径和任务根目录边界检查。
+
 ## A 路线：MapAnything A-v4
 
 1. `run_mapanything_batched.py` 批量预测深度，使用 `--skip-tsdf`。

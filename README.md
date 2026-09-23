@@ -131,6 +131,19 @@ models/torch/hub/checkpoints/dinov2_vitb14_pretrain.pth
 
 `Scene` 只允许字母、数字、点、下划线和连字符。新场景必须提供 `-Images`；已有场景续跑时可以省略。
 
+默认运行数据仍写入仓库下的 `work/<scene>`、`outputs/<scene>` 和 `logs/<scene>`。平台或其他编排器可以为单次运行指定精确目录：
+
+```powershell
+.\run.ps1 -Scene 11111111-1111-4111-8111-111111111111 `
+  -Images D:\Re3D-data\jobs\11111111-1111-4111-8111-111111111111\input\images `
+  -WorkDir D:\Re3D-data\jobs\11111111-1111-4111-8111-111111111111\runtime\work `
+  -OutputDir D:\Re3D-data\jobs\11111111-1111-4111-8111-111111111111\output `
+  -LogDir D:\Re3D-data\jobs\11111111-1111-4111-8111-111111111111\runtime\logs `
+  -Branches all -DryRun
+```
+
+对应环境变量为 `RE3D_WORK_DIR`、`RE3D_OUTPUT_DIR` 和 `RE3D_LOG_DIR`。命令行参数优先于环境变量；两者都未设置时保持原有目录行为。相对路径仍以 Re3D 仓库根目录解析。调用方负责限制目标路径，公开服务不能把用户输入直接传给这些参数。
+
 ## 输入要求
 
 - 支持 `.png`、`.jpg` 和 `.jpeg`；

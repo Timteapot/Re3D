@@ -27,6 +27,17 @@ def resolve_runtime_path(value: str) -> Path:
     return path if path.is_absolute() else ROOT / path
 
 
+def resolve_run_directory(
+    configured: Path | str | None,
+    environment_name: str,
+    default: Path,
+) -> Path:
+    value = configured if configured is not None else os.environ.get(environment_name)
+    if value is None or not str(value).strip():
+        return default.resolve()
+    return resolve_runtime_path(str(value)).resolve()
+
+
 def resolve_texturemesh_path(local_paths: dict) -> Path:
     configured = os.environ.get("RE3D_TEXTUREMESH_EXE") or local_paths.get(
         "texturemesh_executable"
@@ -47,6 +58,9 @@ class Pipeline:
         config_path: Path,
         paths_path: Path,
         dry_run: bool,
+        work_dir: Path | str | None = None,
+        output_dir: Path | str | None = None,
+        log_dir: Path | str | None = None,
     ) -> None:
         if not re.fullmatch(r"[A-Za-z0-9._-]+", scene):
             raise ValueError("Scene name may contain only letters, numbers, '.', '_' and '-'")
@@ -78,7 +92,11 @@ class Pipeline:
                 "set RE3D_TEXTUREMESH_EXE or paths.local.json:texturemesh_executable "
                 "to a build containing upstream fix eeedab7 before enabling it"
             )
-        self.work = ROOT / "work" / scene
+        self.work = resolve_run_directory(
+            work_dir,
+            "RE3D_WORK_DIR",
+            ROOT / "work" / scene,
+        )
         self.input = self.work / "input"
         self.shared = self.work / "shared"
         self.branch_root = self.work / "branches"
@@ -89,8 +107,16 @@ class Pipeline:
         self.a_openmvs = self.branch_root / "a_openmvs"
         self.b_openmvs = self.branch_root / "b_openmvs"
         self.c_openmvs = self.branch_root / "c_openmvs"
-        self.outputs = ROOT / "outputs" / scene
-        self.logs = ROOT / "logs" / scene
+        self.outputs = resolve_run_directory(
+            output_dir,
+            "RE3D_OUTPUT_DIR",
+            ROOT / "outputs" / scene,
+        )
+        self.logs = resolve_run_directory(
+            log_dir,
+            "RE3D_LOG_DIR",
+            ROOT / "logs" / scene,
+        )
         self.base_env = os.environ.copy()
         self.base_env["HF_HOME"] = str(ROOT / "models/huggingface-cache")
         self.base_env["TORCH_HOME"] = str(ROOT / "models/torch")
@@ -828,6 +854,21 @@ def main() -> None:
     parser.add_argument("--branches", default="all", help="all or comma-separated a,b,c")
     parser.add_argument("--config", type=Path, default=ROOT / "configs/pipeline.json")
     parser.add_argument("--paths", type=Path, default=ROOT / "configs/paths.local.json")
+    parser.add_argument(
+        "--work-dir",
+        type=Path,
+        help="Exact per-scene work directory (overrides RE3D_WORK_DIR)",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        help="Exact per-scene output directory (overrides RE3D_OUTPUT_DIR)",
+    )
+    parser.add_argument(
+        "--log-dir",
+        type=Path,
+        help="Exact per-scene log directory (overrides RE3D_LOG_DIR)",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--doctor", action="store_true")
     args = parser.parse_args()
@@ -842,6 +883,9 @@ def main() -> None:
         config_path=args.config,
         paths_path=args.paths,
         dry_run=args.dry_run,
+        work_dir=args.work_dir,
+        output_dir=args.output_dir,
+        log_dir=args.log_dir,
     )
     pipeline.run()
 

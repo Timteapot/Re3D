@@ -1,6 +1,9 @@
 param(
     [string]$Scene,
     [string]$Images,
+    [string]$WorkDir,
+    [string]$OutputDir,
+    [string]$LogDir,
     [ValidateSet('all','a','b','c','a,b','a,c','b,c','a,b,c')]
     [string]$Branches = 'all',
     [switch]$DryRun,
@@ -20,6 +23,9 @@ if ($Doctor) {
     }
     $Arguments += @('--scene', $Scene, '--branches', $Branches)
     if ($Images) { $Arguments += @('--images', $Images) }
+    if ($WorkDir) { $Arguments += @('--work-dir', $WorkDir) }
+    if ($OutputDir) { $Arguments += @('--output-dir', $OutputDir) }
+    if ($LogDir) { $Arguments += @('--log-dir', $LogDir) }
     if ($DryRun) { $Arguments += '--dry-run' }
 }
 & $Python @Arguments
