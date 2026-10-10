@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import unittest
@@ -28,6 +29,10 @@ def make_pipeline(**directories: Path | None) -> Pipeline:
 
 
 class RunDirectoryTests(unittest.TestCase):
+    def test_default_mapanything_batch_size_fits_t4_baseline(self) -> None:
+        config = json.loads((ROOT / "configs" / "pipeline.json").read_text())
+        self.assertEqual(config["a_v4"]["batch_size"], 4)
+
     def test_defaults_preserve_legacy_scene_directories(self) -> None:
         with mock.patch.dict(
             "os.environ",

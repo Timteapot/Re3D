@@ -28,7 +28,7 @@
   },
   "a_v4": {
     "model": "models/mapanything",
-    "batch_size": 12,
+    "batch_size": 4,
     "sparse_scale_mode": "image",
     "minimum_sparse_points": 30,
     "cross_view": {

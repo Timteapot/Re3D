@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+## re3d-pipeline-v1.1.1 — 2026-10-10 — T4 兼容基线
+
+- 将 A-v4 MapAnything 的默认批量大小从 12 调整为 4，避免 15 GiB NVIDIA T4 在多视角注意力阶段发生 CUDA OOM。
+- 同步 `run_mapanything_batched.py` 的独立入口默认值；分支、模型、深度校正、跨视角过滤和 OpenMVS 参数保持不变。
+- 该值已经在目标 Windows Server、Tesla T4 和 11 张 2832×2128 图片上完成三分支真实重建验收。
+
 ### 文档与复现信息
 
 - 更新 `README.md`，明确当前可运行管线、入口、依赖和 OpenMVS 混合调用。
