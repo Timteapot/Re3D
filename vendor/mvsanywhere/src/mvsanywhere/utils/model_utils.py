@@ -32,12 +32,15 @@ def load_model_inference(opts, model_class_to_use):
         model = model_class_to_use(opts)
 
         if opts.load_weights_from_checkpoint is not None:
-            model.load_state_dict(torch.load(opts.load_weights_from_checkpoint)["state_dict"])
-            state_dict = torch.load(opts.load_weights_from_checkpoint)["state_dict"]
+            checkpoint = torch.load(
+                opts.load_weights_from_checkpoint,
+                map_location="cpu",
+            )
+            state_dict = checkpoint["state_dict"].copy()
             
             # These keys exist and may cause incompatible shape issues
-            state_dict.pop('compute_normals.backproject.pix_coords_13N')
-            state_dict.pop('mv_depth_loss.backproject.pix_coords_13N')
+            state_dict.pop('compute_normals.backproject.pix_coords_13N', None)
+            state_dict.pop('mv_depth_loss.backproject.pix_coords_13N', None)
 
             incompatible_keys = model.load_state_dict(state_dict, strict=False)
             for key in incompatible_keys.missing_keys:

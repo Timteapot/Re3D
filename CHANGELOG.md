@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+## re3d-pipeline-v1.1.2 — 2026-10-10 — MVSAnywhere 离线加载修复
+
+- 将 MVSAnywhere 的 DINOv2 Torch Hub 引用固定为 `facebookresearch/dinov2:main`，使已准备的 `facebookresearch_dinov2_main` 缓存无需先访问 GitHub 即可确定性加载。
+- 修正 MVSAnywhere 手动检查点回退顺序：先删除分辨率相关缓存张量，再以非严格模式加载权重，避免网络异常掩盖为尺寸不匹配错误。
+- 保持 A-v4 的 Tesla T4 批量参数、三分支算法参数、模型权重和输出契约不变。
+
 ## re3d-pipeline-v1.1.1 — 2026-10-10 — T4 兼容基线
 
 - 将 A-v4 MapAnything 的默认批量大小从 12 调整为 4，避免 15 GiB NVIDIA T4 在多视角注意力阶段发生 CUDA OOM。

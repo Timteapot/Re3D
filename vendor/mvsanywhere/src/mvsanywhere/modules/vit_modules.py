@@ -100,7 +100,9 @@ class DINOv2(nn.Module):
         super().__init__()
 
         assert model_name in DINOV2_ARCHS.keys(), f'Unknown model name {model_name}'
-        self.model = torch.hub.load('facebookresearch/dinov2', model_name)
+        # Pin the branch name so Torch Hub can resolve the deterministic
+        # facebookresearch_dinov2_main cache without querying GitHub first.
+        self.model = torch.hub.load('facebookresearch/dinov2:main', model_name)
         use_memeffattn_in_model(self.model)
         self.num_channels = DINOV2_ARCHS[model_name]
         self.num_intermediate_layers = len(self.model.blocks) if num_intermediate_layers == -1 else num_intermediate_layers
@@ -228,7 +230,7 @@ class ViTCVEncoder(nn.Module):
         self.num_ch_cv = num_ch_cv
 
         # Load DINOv2 model
-        self.model = torch.hub.load('facebookresearch/dinov2', model_name)
+        self.model = torch.hub.load('facebookresearch/dinov2:main', model_name)
         use_memeffattn_in_model(self.model)
 
         self.feat_fuser_layers_idx = feat_fuser_layers_idx

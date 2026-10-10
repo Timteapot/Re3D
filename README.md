@@ -248,7 +248,7 @@ outputs/<scene>/
 - MVSAnywhere：Python 3.10、PyTorch 2.1.2+cu118；
 - OpenMVS 几何阶段：仓库内 2.4.0 Windows VC17 x64；
 - OpenMVS 纹理阶段：包含 `eeedab7` 的官方 VC18 x64 Release，当前固定构建为 `33d9484`；
-- MVSAnywhere 图像编码器依赖项目内的 DINOv2 源码缓存和 ViT-B/14 权重。
+- MVSAnywhere 图像编码器依赖项目内的 DINOv2 `main` 源码缓存和 ViT-B/14 权重；运行时固定该分支引用，不以访问 GitHub 作为缓存命中的前置条件。
 
 `environments/` 保存 Conda 和 pip 依赖快照，具体重建步骤见 [`environments/README.md`](environments/README.md)。CUDA、显卡驱动和 PyTorch wheel 必须相互兼容。
 
