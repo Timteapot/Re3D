@@ -35,6 +35,68 @@ def robust_log_inliers(ratios: np.ndarray) -> np.ndarray:
     return np.abs(logs - median) <= limit
 
 
+def select_scale_ratios(
+    ratios: np.ndarray,
+    minimum_points: int,
+    ratio_minimum: float = 0.5,
+    ratio_maximum: float = 2.0,
+    fallback_maximum_p90_p10_ratio: float = 2.0,
+) -> tuple[np.ndarray, dict]:
+    """Select a stable set of sparse/predicted depth ratios.
+
+    The fixed ratio window remains the preferred path. If it contains too few
+    robust inliers, retry against every finite positive ratio. The fallback is
+    accepted only when the robust inlier distribution is sufficiently tight,
+    so a globally shifted but coherent learned-depth scale can be recovered
+    without accepting an arbitrary multimodal or unstable estimate.
+    """
+    if minimum_points < 1:
+        raise ValueError("minimum_points must be at least 1")
+    if not 0 < ratio_minimum < ratio_maximum:
+        raise ValueError("ratio bounds must satisfy 0 < minimum < maximum")
+    if fallback_maximum_p90_p10_ratio < 1:
+        raise ValueError("fallback P90/P10 limit must be at least 1")
+
+    values = np.asarray(ratios, dtype=np.float64).reshape(-1)
+    positive = values[np.isfinite(values) & (values > 0)]
+    bounded = positive[(positive > ratio_minimum) & (positive < ratio_maximum)]
+    bounded_inliers = (
+        bounded[robust_log_inliers(bounded)] if len(bounded) else bounded
+    )
+
+    mode = "bounded"
+    selected = bounded_inliers
+    if len(selected) < minimum_points:
+        mode = "adaptive"
+        selected = (
+            positive[robust_log_inliers(positive)] if len(positive) else positive
+        )
+
+    if len(selected) < minimum_points:
+        raise ValueError(
+            f"only {len(selected)} robust scale samples "
+            f"({len(bounded)} bounded, {len(positive)} positive)"
+        )
+
+    ratio_p10, ratio_p90 = np.percentile(selected, [10, 90])
+    p90_p10_ratio = float(ratio_p90 / ratio_p10)
+    if mode == "adaptive" and p90_p10_ratio > fallback_maximum_p90_p10_ratio:
+        raise ValueError(
+            "adaptive scale samples are too dispersed: "
+            f"P90/P10={p90_p10_ratio:.6g} exceeds "
+            f"{fallback_maximum_p90_p10_ratio:.6g}"
+        )
+
+    return selected, {
+        "selection_mode": mode,
+        "positive_samples": int(len(positive)),
+        "bounded_samples": int(len(bounded)),
+        "bounded_inliers": int(len(bounded_inliers)),
+        "selected_samples": int(len(selected)),
+        "selected_p90_p10_ratio": p90_p10_ratio,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Calibrate learned depth scale against registered COLMAP sparse points."
@@ -48,6 +110,9 @@ def main() -> None:
     parser.add_argument("--scale-mode", choices=["image", "group"], default="image")
     parser.add_argument("--group-field", default="batch")
     parser.add_argument("--minimum-points", type=int, default=30)
+    parser.add_argument("--ratio-minimum", type=float, default=0.5)
+    parser.add_argument("--ratio-maximum", type=float, default=2.0)
+    parser.add_argument("--fallback-maximum-p90-p10-ratio", type=float, default=2.0)
     args = parser.parse_args()
 
     reconstruction = pycolmap.Reconstruction(str(args.reconstruction))
@@ -87,11 +152,16 @@ def main() -> None:
         predicted, valid = sample_masked(depth, mask, sample_x, sample_y)
         valid &= np.isfinite(sparse_depth) & (sparse_depth > 0) & (predicted > 0)
         ratios = sparse_depth[valid] / predicted[valid]
-        ratios = ratios[np.isfinite(ratios) & (ratios > 0.5) & (ratios < 2.0)]
-        if len(ratios) < args.minimum_points:
-            raise RuntimeError(f"Only {len(ratios)} valid sparse depth samples for {name}")
-        inliers = robust_log_inliers(ratios)
-        ratios = ratios[inliers]
+        try:
+            ratios, selection = select_scale_ratios(
+                ratios,
+                minimum_points=args.minimum_points,
+                ratio_minimum=args.ratio_minimum,
+                ratio_maximum=args.ratio_maximum,
+                fallback_maximum_p90_p10_ratio=args.fallback_maximum_p90_p10_ratio,
+            )
+        except ValueError as error:
+            raise RuntimeError(f"Cannot calibrate sparse depth scale for {name}: {error}") from error
         log_ratios = np.log(ratios)
         image_scale = float(np.exp(np.median(log_ratios)))
         group_value = metadata.get(name, {}).get(args.group_field, "all")
@@ -103,6 +173,7 @@ def main() -> None:
             "ratio_p10": float(np.percentile(ratios, 10)),
             "ratio_p90": float(np.percentile(ratios, 90)),
             "group": group_key,
+            **selection,
         }
 
     group_scales = {
@@ -140,6 +211,17 @@ def main() -> None:
         "scale_mode": args.scale_mode,
         "group_field": args.group_field if args.scale_mode == "group" else None,
         "group_scales": group_scales,
+        "selection_policy": {
+            "preferred_ratio_bounds": [args.ratio_minimum, args.ratio_maximum],
+            "minimum_points": args.minimum_points,
+            "fallback": "finite positive ratios filtered by log-MAD",
+            "fallback_maximum_p90_p10_ratio": args.fallback_maximum_p90_p10_ratio,
+            "fallback_images": [
+                record["name"]
+                for record in records
+                if record["selection_mode"] == "adaptive"
+            ],
+        },
         "scale_statistics": {
             "minimum": float(scales.min()),
             "median": float(np.median(scales)),

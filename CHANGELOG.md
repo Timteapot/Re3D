@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+- 稀疏尺度校正继续优先使用 `0.5–2.0` 比例窗口；窗口内稳健内点不足时，允许从全部有限正比例中通过 log-MAD 选择内点。
+- 自适应回退仍要求达到最少采样点，并限制内点 `P90/P10 <= 2`；分布过散或样本不足时保持失败，不静默接受不可靠尺度。
+- 校正清单逐图记录选择模式、样本计数和离散度，并在汇总中列出使用回退的图片。
+- 新增严格路径、约 3.4 倍一致尺度、离散比例、样本不足和非法参数的回归测试。
+
 ## re3d-pipeline-v1.1.2 — 2026-10-10 — MVSAnywhere 离线加载修复
 
 - 将 MVSAnywhere 的 DINOv2 Torch Hub 引用固定为 `facebookresearch/dinov2:main`，使已准备的 `facebookresearch_dinov2_main` 缓存无需先访问 GitHub 即可确定性加载。

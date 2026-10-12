@@ -57,7 +57,7 @@ Re3D 仍假设调用方可信，不负责鉴权或多租户路径隔离。公开
 ## A 路线：MapAnything A-v4
 
 1. `run_mapanything_batched.py` 批量预测深度，使用 `--skip-tsdf`。
-2. `calibrate_depths_to_colmap_sparse.py` 用逐图 COLMAP 稀疏点恢复尺度。
+2. `calibrate_depths_to_colmap_sparse.py` 用逐图 COLMAP 稀疏点恢复尺度。默认优先使用 `0.5–2.0` 比例窗口；若窗口内稳健内点不足，则对全部有限正比例执行 log-MAD 内点选择，且仅在至少 30 点、内点 `P90/P10 <= 2` 时接受回退。校正清单记录每张图的选择模式和样本统计。
 3. `optimize_multiview_depths.py` 执行 v4 跨视角一致性过滤。
 4. `export_model_depths_to_openmvs.py` 以 C 的 DMAP 为模板写出 OpenMVS type-5 depth+confidence DMAP。
 5. `validate_openmvs_handoff.py` 检查尺寸、相机、view ID、payload、数值范围和反投影稳定性。
